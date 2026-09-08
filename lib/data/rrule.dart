@@ -1,10 +1,11 @@
-/// 简单循环规则（MVP 默认模式）。
+/// Simple recurrence rules (MVP default mode).
 ///
-/// 字符串编码，便于存库与将来向 RFC5545 RRULE 升级：
-/// - `daily`            每天
-/// - `weekly:<1-7>`     每周 X（1=周一 … 7=周日）
-/// - `monthly:<1-31>`   每月 X 日
-/// - `every:<n>days`    间隔 N 天
+/// String encoding keeps storage trivial and leaves headroom for a future
+/// upgrade to full RFC5545 RRULE:
+/// - `daily`
+/// - `weekly:<1-7>`     (1=Mon .. 7=Sun)
+/// - `monthly:<1-31>`
+/// - `every:<n>days`
 class RRule {
   const RRule.daily() : code = 'daily';
   const RRule.weekly(int weekday) : code = 'weekly:$weekday';
@@ -31,11 +32,12 @@ class RRule {
       if (n == null || n < 1) return null;
       return RRule.everyDays(n);
     }
-    return null; // 不认识的编码当作不循环，宁可不生成也不崩
+    return null; // unknown codes mean "not recurring" — never crash on parse
   }
 
-  /// 基准日（通常是到期日或完成日）之后的下一次发生。
-  /// 每周X：直接对齐到目标星期；每月X日：同月未过用同月，否则下月（月末截断）。
+  /// Next occurrence after [base] (usually the due or completion date).
+  /// weekly: aligns to the target weekday; monthly: same month if not yet
+  /// passed, otherwise next month (clamped to the month end).
   DateTime nextAfter(DateTime base) {
     final d = DateTime(base.year, base.month, base.day);
     switch (code) {
@@ -44,7 +46,7 @@ class RRule {
     }
     if (code.startsWith('weekly:')) {
       final target = int.parse(code.substring(7)); // 1=周一
-      final current = d.weekday; // Dart: 1=周一…7=周日，正好一致
+      final current = d.weekday; // Dart: 1=Mon..7=Sun, matches our encoding
       final diff = (target - current) % 7;
       return d.add(Duration(days: diff == 0 ? 7 : diff));
     }
@@ -76,7 +78,7 @@ class RRule {
     return k[m - 1];
   }
 
-  /// UI 用中文描述
+  /// Chinese label for the UI.
   String get label {
     switch (code) {
       case 'daily':
@@ -94,7 +96,7 @@ class RRule {
     return code;
   }
 
-  /// 下拉选择器用的候选规则
+  /// Candidate rules for the picker sheet.
   static List<RRule> get presets => const [
         RRule.daily(),
         RRule.weekly(1),

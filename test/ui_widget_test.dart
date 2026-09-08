@@ -292,4 +292,74 @@ void main() {
       await unwind(tester);
     });
   });
+
+  group('L2 DDL 提醒（编辑弹层入口与选择器）', () {
+    testWidgets('选到期日后「提前提醒」chip 出现 → 打开多选选择器', (tester) async {
+      await pumpHome(tester);
+      await tester.tap(find.byIcon(Icons.add_rounded));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // 未选日期时无提醒入口
+      expect(find.text('提前提醒'), findsNothing);
+
+      // 选到期日（DatePicker 默认今天 → OK）
+      await tester.tap(find.text('到期日'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      final ok = find.text('OK');
+      if (ok.evaluate().isNotEmpty) {
+        await tester.tap(ok.first);
+      } else {
+        await tester.tap(find.text('确定').first);
+      }
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      // 时刻步骤：选全天
+      await tester.tap(find.text('全天任务'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // 提醒 chip 出现，点开选择器
+      await tester.tap(find.text('提前提醒'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('提前提醒（可多选）'), findsOneWidget);
+      expect(find.text('准时'), findsOneWidget);
+      expect(find.text('15分钟'), findsOneWidget);
+      // The last preset ("1天") may be below the fold in the test viewport.
+
+      // 勾选两项并确定 → chip 文案回显（列表超视口时先滚动到目标；
+      // 页面背后还有一个 Scrollable，须限定弹层内那个）
+      final sheetScrollable = find.descendant(
+        of: find.ancestor(
+          of: find.text('提前提醒（可多选）'),
+          matching: find.byType(BottomSheet),
+        ),
+        matching: find.byType(Scrollable),
+      ).evaluate().isNotEmpty
+          ? find.descendant(
+              of: find.ancestor(
+                of: find.text('提前提醒（可多选）'),
+                matching: find.byType(BottomSheet),
+              ),
+              matching: find.byType(Scrollable),
+            ).first
+          : find.byType(Scrollable).first;
+      await tester.scrollUntilVisible(
+        find.text('1小时'),
+        120,
+        scrollable: sheetScrollable,
+      );
+      await tester.tap(find.text('15分钟'));
+      await tester.tap(find.text('1小时'));
+      await tester.pump();
+      await tester.tap(find.text('确定'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.textContaining('提前 15分钟 / 1小时'), findsOneWidget,
+          reason: '多选后 chip 回显所选提前量');
+      await unwind(tester);
+    });
+  });
 }

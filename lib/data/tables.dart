@@ -1,52 +1,58 @@
 import 'package:drift/drift.dart';
 
-/// 清单（项目/分类）
-/// DataClassName 显式命名：Drift 默认会去掉表名末尾 s，把行类命名为 `List`
-/// 直接遮蔽 dart:core 的 List，必须改名。
+/// List (project/category) table.
+/// DataClassName is explicit: Drift would otherwise strip the trailing "s"
+/// and name the row class `List`, shadowing dart:core's List.
 @DataClassName('ListRecord')
 class Lists extends Table {
   TextColumn get id => text()(); // UUID
   TextColumn get name => text().withLength(min: 1, max: 100)();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
-  TextColumn get icon => text().nullable()(); // 图标标识，留扩展
+  TextColumn get icon => text().nullable()(); // icon key, reserved for future
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
-  DateTimeColumn get deletedAt => dateTime().nullable()();
+  DateTimeColumn get deletedAt => dateTime().nullable()(); // tombstone
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
-/// 记录：待办 + 轻笔记混合
+/// Record: todo + lightweight note hybrid.
 class Records extends Table {
   TextColumn get id => text()(); // UUID
   TextColumn get title => text().withLength(min: 1, max: 500)();
-  TextColumn get body => text().withDefault(const Constant(''))(); // 轻笔记正文
-  TextColumn get listId => text().nullable()(); // 所属清单，可空=收件箱
+  TextColumn get body => text().withDefault(const Constant(''))();
+  TextColumn get listId => text().nullable()(); // null = inbox
   BoolColumn get pinned => boolean().withDefault(const Constant(false))();
-  // v0.1.2（F2b）：到期日期-时间 + 全天标记（显式字段，废弃「零点=仅日期」哨兵）。
-  // allDay=true 表示用户显式选择全天任务；false 表示 dueAt 携带真实时刻。
+  // v0.1.2 (F2b): due date-time + explicit all-day flag. The "midnight means
+  // date-only" sentinel is gone; allDay=true means user explicitly picked
+  // all-day, false means dueAt carries a real time-of-day.
   BoolColumn get allDay => boolean().withDefault(const Constant(true))();
-  DateTimeColumn get dueAt => dateTime().nullable()(); // 到期/今天归属，可带时刻
-  // 时间区间（F1）：开始–结束时刻，与 dueAt/rrule 正交。
-  // 约定：日期部分无意义（跟随 dueAt 的日期；无 dueAt 时视为当天），只用时刻部分。
+  DateTimeColumn get dueAt => dateTime().nullable()();
+  // Time span (F1): start/end, orthogonal to dueAt and rrule.
+  // F1c: full timestamps (may span days); no implicit anchoring.
   DateTimeColumn get startAt => dateTime().nullable()();
   DateTimeColumn get endAt => dateTime().nullable()();
-  TextColumn get rrule => text().nullable()(); // 简单循环规则，见 RRule
-  // v0.1.1（F3）：完成循环任务时生成的下一次实例的 UUID（血缘指针）。
-  // 撤销完成时用于定位并回收「未被编辑过」的下一次实例；非循环任务恒空。
+  TextColumn get rrule => text().nullable()(); // simple recurrence, see RRule
+  // v0.1.1 (F3): UUID of the "next instance" spawned when a recurring record
+  // completes. Used on undo-completion to reclaim a pure-clone instance.
   TextColumn get nextInstanceId => text().nullable()();
+  // v0.1.3 (L2): reminder lead times as a comma-separated list of minutes
+  // (e.g. "0,15,60"); 0 = on-time. Empty/null = no reminder. Multi-select
+  // (rationale in WORKLOG 2026-09-08).
+  TextColumn get reminderOffsets => text().nullable()();
   DateTimeColumn get completedAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
-  DateTimeColumn get deletedAt => dateTime().nullable()(); // 墓碑
+  DateTimeColumn get deletedAt => dateTime().nullable()(); // tombstone
 
   @override
   Set<Column> get primaryKey => {id};
 }
 
-/// 勾选项：一条记录挂 0~N 个
-/// 注意：列名不能用 `text`，会与 Drift 构建方法 text() 递归冲突
+/// Checkitem: 0..N per record.
+/// Note: the column must NOT be named `text` — that collides with Drift's
+/// text() column builder and breaks the generator (recursive resolution).
 class Checkitems extends Table {
   TextColumn get id => text()(); // UUID
   TextColumn get recordId => text()();
@@ -55,7 +61,7 @@ class Checkitems extends Table {
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
-  DateTimeColumn get deletedAt => dateTime().nullable()();
+  DateTimeColumn get deletedAt => dateTime().nullable()(); // tombstone
 
   @override
   Set<Column> get primaryKey => {id};

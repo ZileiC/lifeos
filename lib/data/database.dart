@@ -12,10 +12,12 @@ part 'database.g.dart';
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : _migrationOverride = null, super(_openConnection());
 
-  /// 测试用：注入自定义 QueryExecutor（内存库等）。
-  /// [migrationOverride] 可替换迁移策略（migration 测试用它阻止自动建表）。
-  // 本构造器因私有字段名与参数名不一致，无法用 super/init-formal 语法，
-  // 两条 lint 在文件级豁免（仅此一处使用）。
+  /// Testing constructor: inject a custom QueryExecutor (in-memory db etc).
+  /// [migrationOverride] swaps the migration strategy (the migration tests use
+  /// it to block automatic table creation).
+  // This constructor cannot use super/init-formal syntax because the private
+  // field name differs from the parameter name; lint exemptions are
+  // file-scoped (single use site).
   // ignore_for_file: use_super_parameters, prefer_initializing_formals
   AppDatabase.forTesting(QueryExecutor e, {MigrationStrategy? migrationOverride})
       : _migrationOverride = migrationOverride,
@@ -24,13 +26,13 @@ class AppDatabase extends _$AppDatabase {
   final MigrationStrategy? _migrationOverride;
 
   @override
-  int get schemaVersion => 3; // v3: records 加 allDay（v0.1.2 F2b 全天标记）
+  int get schemaVersion => 4; // v4: records.reminderOffsets (v0.1.3 L2)
 
   static QueryExecutor _openConnection() {
     return driftDatabase(
       name: 'lifeos',
       native: const DriftNativeOptions(
-        // Android 用应用文档目录；Windows 用 %APPDATA%/LifeOS
+        // Android: app documents dir; Windows: %APPDATA%/LifeOS
         databaseDirectory: getApplicationDocumentsDirectory,
       ),
     );
@@ -43,12 +45,12 @@ class AppDatabase extends _$AppDatabase {
         onUpgrade: (m, from, to) async {
           await migrateV1ToV2(m, from, to);
           await migrateV2ToV3(m, from, to);
+          await migrateV3ToV4(m, from, to);
         },
       );
 
-  /// v1 -> v2 升级步骤（独立成方法便于迁移测试直接驱动）：
-  /// records 加 startAt/endAt（v0.1.1 F1 时间区间）
-  ///        + nextInstanceId（v0.1.1 F3 循环实例血缘指针）
+  /// v1 -> v2 (v0.1.1 F1/F3): records adds startAt/endAt (time span) and
+  /// nextInstanceId (lineage pointer to the next recurring instance).
   Future<void> migrateV1ToV2(Migrator m, int from, int to) async {
     if (from < 2) {
       await m.addColumn(records, records.startAt);
@@ -57,19 +59,18 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
-  /// v2 -> v3 升级步骤（v0.1.2 F2b）：
-  /// records 加 allDay 显式全天标记。
-  /// 存量数据回填：v0.1.1 时代「零点=仅日期」，故 dueAt 时刻为零点的行回填
-  /// allDay=true；带真实时刻的行回填 allDay=false。零点哨兵从此废除——
-  /// 用户显式选 00:00 时是真实 00:00（allDay=false）。
+  /// v2 -> v3 (v0.1.2 F2b): records adds the explicit allDay flag.
+  /// Backfill for the v0.1.1 "midnight = date-only" sentinel: rows with a
+  /// non-midnight dueAt become allDay=false; midnight/null become allDay=true.
+  /// The sentinel is gone — an explicit 00:00 pick is now a real 00:00 with
+  /// allDay=false.
   Future<void> migrateV2ToV3(Migrator m, int from, int to) async {
     if (from < 3) {
       await m.addColumn(records, records.allDay);
-      // 回填 v0.1.1 的零点哨兵：非零时刻 → 非全天；零点/空 → 全天。
-      // due_at 存的是 unix 秒（drift 默认）。strftime(..., 'unixepoch') 按 UTC
-      // 解释会把本地零点算成前一天 16:00（UTC+8），必须叠加本地时区偏移——
-      // drift 写入时用的是本地时间→unix 秒，读回也用本地解释。
-      // 'localtime' 修饰符把 unix 秒换算到本地时区，与 drift 语义一致。
+      // due_at is stored as unix seconds (drift default). strftime with
+      // 'unixepoch' interprets it as UTC, which turns a local (UTC+8) midnight
+      // into the previous day 16:00; the 'localtime' modifier converts it back
+      // to drift's local-time semantics.
       await customStatement(
         'UPDATE records SET all_day = CASE '
         'WHEN due_at IS NOT NULL '
@@ -78,7 +79,15 @@ class AppDatabase extends _$AppDatabase {
       );
     }
   }
+
+  /// v3 -> v4 (v0.1.3 L2): records adds reminderOffsets (comma-separated
+  /// minute offsets, e.g. "0,15,60"). Null = no reminder for existing rows.
+  Future<void> migrateV3ToV4(Migrator m, int from, int to) async {
+    if (from < 4) {
+      await m.addColumn(records, records.reminderOffsets);
+    }
+  }
 }
 
-/// 删除目录探测（Windows 端调试确认库文件落位）
+/// Debug helper to locate the database directory on Windows.
 Future<Directory> dbFolder() => getApplicationDocumentsDirectory();

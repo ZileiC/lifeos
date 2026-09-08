@@ -5,10 +5,73 @@ import 'package:intl/intl.dart';
 import '../data/repository.dart';
 import '../data/rrule.dart';
 import '../providers.dart';
+import '../services/notification_service.dart';
 import 'edit_record_sheet.dart';
 import 'manage_lists_sheet.dart';
 
 final _dateFmt = DateFormat('M月d日');
+
+/// L2: in-app banner when notification permission is missing. Shows once per
+/// app run (per dismissed state), offers a jump to system settings.
+class _PermissionBanner extends StatefulWidget {
+  const _PermissionBanner();
+
+  @override
+  State<_PermissionBanner> createState() => _PermissionBannerState();
+}
+
+class _PermissionBannerState extends State<_PermissionBanner> {
+  bool? _granted; // null = not yet checked
+  bool _dismissed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    NotificationService.instance.canScheduleExact.then((ok) {
+      if (mounted) setState(() => _granted = ok);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (_granted != false || _dismissed) return const SizedBox.shrink();
+    return Material(
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+          child: Row(
+            children: [
+              Icon(Icons.notifications_off_outlined,
+                  size: 18, color: theme.colorScheme.error),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('通知权限未开启，到期提醒无法送达',
+                    style: TextStyle(fontSize: 13)),
+              ),
+              TextButton(
+                onPressed: () async {
+                  await NotificationService.instance.requestPermission();
+                  final ok =
+                      await NotificationService.instance.canScheduleExact;
+                  if (mounted) setState(() => _granted = ok);
+                },
+                child: const Text('去开启'),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close_rounded, size: 18),
+                onPressed: () => setState(() => _dismissed = true),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -49,7 +112,13 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       drawer: const AppDrawer(),
-      body: RecordList(kind: kind),
+      body: Column(
+        children: [
+          // L2: notification permission banner (degraded path).
+          const _PermissionBanner(),
+          Expanded(child: RecordList(kind: kind)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => showEditRecordSheet(context, ref),
         child: const Icon(Icons.add_rounded, size: 28),
@@ -115,7 +184,7 @@ class _RecordListState extends ConsumerState<RecordList> {
                   );
                 },
               ),
-              // F4：多选模式底部操作栏
+              // F4: multi-select bottom action bar.
               if (_selecting)
                 Positioned(
                   left: 0,
@@ -135,7 +204,7 @@ class _RecordListState extends ConsumerState<RecordList> {
   }
 }
 
-/// F4：批量操作栏。完成/取消完成按视图语境显示；删除走墓碑。
+/// F4 bulk action bar. Complete/undo per view context; delete is tombstoned.
 class _BulkActionBar extends ConsumerWidget {
   const _BulkActionBar({
     required this.kind,
@@ -177,7 +246,7 @@ class _BulkActionBar extends ConsumerWidget {
                 onPressed: onDone,
               ),
               const SizedBox(width: 4),
-              // 视图语境：已完成视图给「取消完成」，其余给「完成」
+              // View context: done view offers undo, others offer complete.
               if (kind == ViewKind.done)
                 FilledButton.tonalIcon(
                   icon: const Icon(Icons.undo_rounded, size: 18),
@@ -295,7 +364,7 @@ class RecordCard extends ConsumerWidget {
 
     final hasContent = r.body.trim().isNotEmpty || data.items.isNotEmpty;
 
-    // 选中态描边
+    // Selection border.
     final borderColor =
         selected ? theme.colorScheme.primary : theme.colorScheme.outline;
 
@@ -304,7 +373,7 @@ class RecordCard extends ConsumerWidget {
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        // F3b：卡片内容区 = 详情入口；多选模式下点卡片 = 选中
+        // F3b: card body = detail entry; in multi-select a tap = select.
         onTap: selecting
             ? onSelectToggle
             : () => showEditRecordSheet(context, ref, existing: data),
@@ -319,8 +388,9 @@ class RecordCard extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 勾选圆点：任何视图都可点，只切换完成态，永不打开详情。
-              // 手势隔离：圆点自己的 InkWell 吃掉点击，不穿透到卡片。
+              // Done dot: tappable in every view; toggles completion only,
+              // never opens the detail sheet. Gesture isolation: the dot's
+              // InkWell consumes the tap so it does not reach the card's.
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: _DoneButton(
@@ -331,7 +401,7 @@ class RecordCard extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              // 内容区
+              // Content area.
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -375,7 +445,7 @@ class RecordCard extends ConsumerWidget {
                           ),
                         ),
                       ],
-                      // 勾选项预览（最多 2 条）
+                      // Checkitem preview (max 2).
                       if (data.items.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         ...data.items.take(2).map((item) => Padding(
@@ -424,7 +494,7 @@ class RecordCard extends ConsumerWidget {
                             ),
                           ),
                       ],
-                      // 元信息行：到期日 / 时间区间 / 循环
+                      // Meta row: due / time span / recurrence.
                       if (r.dueAt != null || r.rrule != null || r.startAt != null) ...[
                         const SizedBox(height: 6),
                         Row(
@@ -442,7 +512,7 @@ class RecordCard extends ConsumerWidget {
                                 ),
                               ),
                             ],
-                            // F1：时间区间展示
+                            // F1/F1c: time span display.
                             if (r.startAt != null) ...[
                               const SizedBox(width: 10),
                               Icon(Icons.timelapse_rounded,
@@ -476,7 +546,7 @@ class RecordCard extends ConsumerWidget {
                   ),
                 ),
               ),
-              // 置顶按钮（多选模式隐藏）
+              // Pin button (hidden in multi-select mode).
               if (!selecting && !done)
                 IconButton(
                   visualDensity: VisualDensity.compact,
@@ -500,20 +570,21 @@ class RecordCard extends ConsumerWidget {
     );
   }
 
-  // 颜色判定按「日」粒度——今天之内（含今天的未来时刻）不算逾期，
-  // 时刻只影响文案展示，不影响归属与标红（防回归）
+  // Color is decided at day granularity — anything due today (even later
+  // today) is not overdue; time-of-day only affects the label (regression
+  // guard).
   Color _dueColor(BuildContext context, DateTime due, bool done) {
     final theme = Theme.of(context);
     if (done) return theme.colorScheme.onSurfaceVariant;
     final today = DateTime.now();
     final d0 = DateTime(today.year, today.month, today.day);
     final due0 = DateTime(due.year, due.month, due.day);
-    if (due0.isBefore(d0)) return theme.colorScheme.error; // 逾期
-    if (due0.isAtSameMomentAs(d0)) return theme.colorScheme.primary; // 今天
+    if (due0.isBefore(d0)) return theme.colorScheme.error; // overdue
+    if (due0.isAtSameMomentAs(d0)) return theme.colorScheme.primary; // today
     return theme.colorScheme.onSurfaceVariant;
   }
 
-  // F2b：allDay=false 才展示时刻；全天任务只显日期
+  // F2b: show time only when !allDay; all-day shows the date alone.
   String _dueLabel(DateTime due, bool allDay) {
     final now = DateTime.now();
     final d0 = DateTime(now.year, now.month, now.day);
@@ -529,7 +600,7 @@ class RecordCard extends ConsumerWidget {
     return '${_dateFmt.format(due)}$timePart';
   }
 
-  // F1c：区间展示文案（带日期轴；跨天显示两端日期）
+  // F1c span label (date axis included; cross-day shows both dates).
   String _spanLabel(DateTime start, DateTime? end) {
     String f(DateTime t) =>
         '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
@@ -542,8 +613,8 @@ class RecordCard extends ConsumerWidget {
   }
 }
 
-/// 完成勾选按钮：圆环 -> 实心勾。
-/// F3b：任何视图都可点；onChanged 为 null 仅发生在多选模式。
+/// Done button: ring -> filled check.
+/// F3b: tappable in every view; onChanged is null only in multi-select.
 class _DoneButton extends StatelessWidget {
   const _DoneButton({required this.done, required this.onChanged});
 

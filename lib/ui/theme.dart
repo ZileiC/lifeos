@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// 深色唯一主题。
-/// 品味目标：干净、有重量感、排版整齐；拒绝霓虹渐变。
-/// 用近黑灰阶 + 单一低饱和强调色（青灰蓝），层次靠表面色阶而非发光。
+/// The single dark theme.
+/// Taste targets: clean, weighty, tidy typography; no neon gradients.
+/// Near-black grays plus one low-saturation accent (gray-blue); hierarchy
+/// comes from surface elevations, not glow.
 class AppTheme {
-  // 色板：低饱和、有分量
-  static const _bg = Color(0xFF111318); // 近黑，带一点冷
+  // Palette: low saturation, substantial.
+  static const _bg = Color(0xFF111318); // near-black with a cool cast
   static const _surface = Color(0xFF191C22);
   static const _surfaceHigh = Color(0xFF21252D);
   static const _outline = Color(0xFF2E333D);
-  static const _accent = Color(0xFF8FB4CC); // 灰蓝，克制
+  static const _accent = Color(0xFF8FB4CC); // restrained gray-blue
   static const _accentDim = Color(0xFF5C7A8E);
   static const _onBg = Color(0xFFE4E6EB);
   static const _onBgDim = Color(0xFF9AA0AB);
@@ -35,7 +36,7 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: _bg,
-      fontFamily: null, // 平台默认（Android: Roboto；Windows: Segoe UI）
+      fontFamily: null, // platform default (Roboto on Android, Segoe UI on Win)
     );
 
     return base.copyWith(

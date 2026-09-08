@@ -2,37 +2,40 @@ import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
 import 'database.dart';
+import 'reminders.dart';
 import 'rrule.dart';
+import '../services/notification_service.dart';
 
-/// 视图种类
+/// View kinds.
 enum ViewKind { inbox, today, done }
 
-/// 记录 + 其勾选项的聚合
+/// Record + its checkitems aggregate.
 class RecordWithItems {
   RecordWithItems({required this.record, required this.items});
   final Record record;
   final List<Checkitem> items;
 }
 
-/// 数据仓库：全部写操作走这里，保证 UUID / updated_at / 墓碑一致性。
+/// Repository: all writes go through here to keep UUID / updated_at /
+/// tombstone consistency.
 class RecordRepository {
   RecordRepository(this._db);
   final AppDatabase _db;
 
   static const _uuid = Uuid();
 
-  // 具体生成表类型（$ 前缀是公开名，来自 database 库的 part 文件）
+  // Concrete generated table types (the \$ names come from database.g.dart).
   $RecordsTable get _r => _db.records;
   $CheckitemsTable get _c => _db.checkitems;
   $ListsTable get _l => _db.lists;
 
-  // ---------- 读 ----------
+  // ---------- reads ----------
 
   Expression<bool> _alive() => _r.deletedAt.isNull();
 
   Expression<bool> _completed() => _r.completedAt.isNotNull();
 
-  /// 指定清单过滤；listId 为 null 时不限清单
+  /// Filter by list; null listId = no filter.
   Expression<bool> _inList(String? listId) =>
       listId == null ? const Constant(true) : _r.listId.equals(listId);
 
@@ -47,23 +50,23 @@ class RecordRepository {
     Expression<bool> where;
     switch (kind) {
       case ViewKind.inbox:
-        // 收件箱 = 未完成的所有活跃记录（今日视图负责按到期聚合高亮）
+        // Inbox = all active uncompleted records (today view aggregates by due).
         where = _alive() & _r.completedAt.isNull() & _inList(listId);
       case ViewKind.today:
-        // 今日 = 有到期日且到期日 < 明天零点，未完成
+        // Today = dueAt set and dueAt < tomorrow midnight, uncompleted.
         where = _alive() &
             _r.completedAt.isNull() &
             _inList(listId) &
             _r.dueAt.isNotNull() &
             _r.dueAt.isSmallerThanValue(tomorrow);
       case ViewKind.done:
-        // 已完成 = 近 30 天完成的，完成时间倒序
+        // Done = completed within the last 30 days, newest first.
         final since = today.subtract(const Duration(days: 30));
         where = _alive() & _completed() & _r.completedAt.isBiggerOrEqualValue(since);
     }
 
     final sort = switch (kind) {
-      // 未完成视图：置顶优先，然后到期日近的在前，再按创建时间
+      // Open views: pinned first, then earliest due, then newest created.
       ViewKind.inbox || ViewKind.today => [
           OrderingTerm(expression: _r.pinned, mode: OrderingMode.desc),
           OrderingTerm(expression: _r.dueAt, mode: OrderingMode.asc),
@@ -74,8 +77,8 @@ class RecordRepository {
         ],
     };
 
-    // SimpleSelectStatement.orderBy 需要 OrderClauseGenerator<$RecordsTable>，
-    // 把每条 OrderingTerm 包成闭包
+    // SimpleSelectStatement.orderBy takes OrderClauseGenerator<$RecordsTable>,
+    // wrap each OrderingTerm in a closure.
     final List<OrderClauseGenerator<$RecordsTable>> clauses =
         sort.map((term) => (_) => term).toList();
     final stmt = _db.select(_r)
@@ -104,7 +107,7 @@ class RecordRepository {
         .watch();
   }
 
-  // ---------- 记录写 ----------
+  // ---------- record writes ----------
 
   Future<String> createRecord({
     required String title,
@@ -115,6 +118,7 @@ class RecordRepository {
     DateTime? startAt,
     DateTime? endAt,
     RRule? rrule,
+    List<int> reminderOffsets = const [],
     List<String> checkitems = const [],
   }) async {
     final now = DateTime.now();
@@ -131,6 +135,7 @@ class RecordRepository {
             startAt: Value(span?.$1),
             endAt: Value(span?.$2),
             rrule: Value(rrule?.code),
+            reminderOffsets: Value(encodeReminderOffsets(reminderOffsets)),
             createdAt: now,
             updatedAt: now,
           ));
@@ -139,12 +144,20 @@ class RecordRepository {
             recordId: id, content: checkitems[i], sortOrder: i, now: now);
       }
     });
+    // L2: schedule reminders for the new record (after commit).
+    await _rescheduleReminders(RecordDraft(
+      id: id,
+      title: title,
+      dueAt: dueAt,
+      allDay: allDay,
+      offsets: reminderOffsets,
+    ));
     return id;
   }
 
-  /// 时间区间落库前规范化：双边齐时 endAt 早于 startAt 才对调；
-  /// 单边（只开始/只结束）原样保留（F1b：可只设开始不设结束）。
-  /// 返回 (startAt, endAt)；两者都空返回 null。
+  /// Normalize a time span before persisting: with both ends present, swap
+  /// when endAt is before startAt; keep single-sided spans as-is (F1b: start
+  /// only is allowed). Returns (startAt, endAt); null when both are empty.
   (DateTime?, DateTime?)? _normalizeSpan({
     required DateTime? dueAt,
     required DateTime? startAt,
@@ -188,9 +201,12 @@ class RecordRepository {
     RRule? rrule,
     bool clearRrule = false,
     bool? pinned,
+    List<int>? reminderOffsetsParam,
+    bool clearReminders = false,
   }) async {
     final now = DateTime.now();
-    // 时间区间：clearSpan 优先；否则传入即整体替换，startAt/endAt 成对规范
+    // Time span: clearSpan wins; otherwise replace as a whole with the pair
+    // normalized.
     (DateTime?, DateTime?)? span;
     Value<DateTime?> startV = const Value.absent();
     Value<DateTime?> endV = const Value.absent();
@@ -219,20 +235,38 @@ class RecordRepository {
             ? const Value(null)
             : (rrule == null ? const Value.absent() : Value(rrule.code)),
         pinned: pinned == null ? const Value.absent() : Value(pinned),
+        reminderOffsets: clearReminders
+            ? const Value(null)
+            : (reminderOffsetsParam == null
+                ? const Value.absent()
+                : Value(encodeReminderOffsets(reminderOffsetsParam))),
         updatedAt: Value(now),
       ),
     );
+    // L2: DDL/time/reminder changes re-schedule notifications.
+    final row = await (_db.select(_r)..where((r) => r.id.equals(id)))
+        .getSingleOrNull();
+    if (row != null) {
+      await _rescheduleReminders(RecordDraft(
+        id: row.id,
+        title: row.title,
+        dueAt: row.dueAt,
+        allDay: row.allDay,
+        offsets: parseReminderOffsets(row.reminderOffsets),
+      ));
+    }
   }
 
-  /// 勾选/取消完成。完成时若带循环规则：生成下一次实例（新 UUID），
-  /// 本条作为已完成记录留在历史里。
+  /// Mark complete / undo completion. On completion of a recurring record,
+  /// spawn the next instance (new UUID); the original stays in history as a
+  /// completed row.
   ///
-  /// 撤销完成（F3）的循环实例回收策略：
-  /// 下一次实例**仅在其仍是「纯克隆」时一并墓碑回收**——判定标准 =
-  /// 实例的 updatedAt == createdAt（创建后从未被编辑过）。
-  /// 理由：纯克隆意味着用户没在它上面做任何工作（没改标题/正文/勾选项状态），
-  /// 回收无损失；一旦编辑过，说明用户已经在为下一次做事，回收会毁掉真实工作。
-  /// 回收 = 墓碑删除（同步铁律：禁止物理删除）。
+  /// Undo-completion (F3) reclaim policy for the spawned next instance:
+  /// it is tombstone-reclaimed only while it is still a "pure clone".
+  /// A pure clone means the user has done no work on it (title/body/
+  /// checkitems/allDay/span untouched), so reclaiming loses nothing; once
+  /// edited, it holds real work and must be kept. Reclaim = tombstone
+  /// (sync iron rule: no physical deletes).
   Future<void> setCompleted(String id, bool done) async {
     final now = DateTime.now();
     await _db.transaction(() async {
@@ -244,13 +278,13 @@ class RecordRepository {
         );
         final rule = RRule.parse(row.rrule);
         if (rule != null) {
-          // 下一次实例：从到期日（无到期日则从今天）往后推
+          // Next instance: advance from the due date (today if none).
           final base = row.dueAt ?? now;
           final nextDue = rule.nextAfter(base);
           final nextId = _uuid.v4();
-          // F1b：时间段随行——日期推进到 nextDue 的日期，时刻保留原值
+          // F1b/F1c: carry the span onto the next instance (times kept).
           final (nextStart, nextEnd) = _carrySpan(row, nextDue);
-          // F2b：全天标记随行
+          // F2b: allDay flag carried over.
           await _db.into(_r).insert(RecordsCompanion.insert(
                 id: nextId,
                 title: row.title,
@@ -264,7 +298,7 @@ class RecordRepository {
                 createdAt: now,
                 updatedAt: now,
               ));
-          // 循环任务的勾选项带到下一次实例（重置为未勾选）
+          // Carry checkitems to the next instance (reset to unchecked).
           final items = await (_db.select(_c)
                 ..where((c) => c.recordId.equals(row.id) & c.deletedAt.isNull())
                 ..orderBy([(c) => OrderingTerm(expression: c.sortOrder)]))
@@ -279,20 +313,39 @@ class RecordRepository {
                   updatedAt: now,
                 ));
           }
-          // 记下「下一次实例」的血缘，供撤销完成时回收判定
+          // Record the lineage for undo-completion reclaim.
           await (_db.update(_r)..where((r) => r.id.equals(id))).write(
             RecordsCompanion(nextInstanceId: Value(nextId), updatedAt: Value(now)),
           );
+          // L2: schedule reminders for the spawned next instance
+          // (its DDL minus lead times). Offsets carried from the origin.
+          await _rescheduleReminders(RecordDraft(
+            id: nextId,
+            title: row.title,
+            dueAt: nextDue,
+            allDay: row.allDay,
+            offsets: parseReminderOffsets(row.reminderOffsets),
+          ));
         }
+        // L2: the completed origin no longer needs reminders.
+        await NotificationService.instance.cancelForRecord(id);
       } else {
         await (_db.update(_r)..where((r) => r.id.equals(id))).write(
           RecordsCompanion(completedAt: const Value(null), updatedAt: Value(now)),
         );
-        // F3：撤销完成时回收「仍是纯克隆」的下一次实例。
-        // 纯克隆判定 = 实例内容与原记录模板完全一致（标题/正文/清单/区间/
-        // 循环规则 + 全部勾选项文本与状态一致，且实例未完成、未删除）。
-        // 不用 updatedAt == createdAt 判定：同一毫秒内创建与编辑时间戳相同，
-        // 会把已编辑的实例误判为纯克隆（测试真实暴露过）。
+        // L2: back to open — restore reminders per current fields.
+        await _rescheduleReminders(RecordDraft(
+          id: id,
+          title: row.title,
+          dueAt: row.dueAt,
+          allDay: row.allDay,
+          offsets: parseReminderOffsets(row.reminderOffsets),
+        ));
+        // F3: on undo-completion, reclaim the next instance if it is still a
+        // pure clone. Purity is content equality with the origin template
+        // (title/body/list/span/rrule + all checkitems, instance uncompleted
+        // and undeleted). Timestamp equality is NOT used: same-millisecond
+        // create/edit indistinguishable (bitten in a real test).
         final nextId = row.nextInstanceId;
         if (nextId != null) {
           final next = await (_db.select(_r)..where((r) => r.id.equals(nextId)))
@@ -308,7 +361,7 @@ class RecordRepository {
               CheckitemsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
             );
           }
-          // 清掉血缘指针（无论是否回收，撤销后这条链路已作废）
+          // Clear the lineage pointer (the chain is void after undo).
           await (_db.update(_r)..where((r) => r.id.equals(id))).write(
             RecordsCompanion(nextInstanceId: Value<String?>(null), updatedAt: Value(now)),
           );
@@ -317,9 +370,10 @@ class RecordRepository {
     });
   }
 
-  /// F3：纯克隆判定——实例内容与原记录模板一致。
-  /// 撤销完成时，纯克隆实例可安全回收；有任何用户加工痕迹则保留。
-  /// F2b：allDay 标记纳入比对。F1c：区间按完整时间戳比对（跨天可辨）。
+  /// F3 pure-clone test: the instance still matches the origin template.
+  /// Pure clones are safe to reclaim on undo-completion; any user edit keeps
+  /// the instance. F2b: allDay is compared. F1c: spans compare as full
+  /// timestamps (cross-day distinguishable).
   bool _isPureClone(Record origin, Record next) {
     bool sameInstant(DateTime? a, DateTime? b) =>
         (a == null && b == null) ||
@@ -334,12 +388,12 @@ class RecordRepository {
         sameInstant(origin.endAt, next.endAt);
   }
 
-  /// F1c：循环生成下一次时的时间段随行。
-  /// 推进量 = 下一次到期日 − 原到期日（天数差，可为负）；
-  /// 新开始 = 原开始日期 + 推进量，时刻保留；
-  /// 跨天区间保持跨度：新结束 = 新开始日期 + 原（结束日期 − 开始日期）天数差，
-  /// 时刻保留。无区间原样返回空。
-  /// 原记录无到期日时推进量 = 0（区间原样保留）。
+  /// F1c: carry the time span onto the next recurring instance.
+  /// Advance = next due minus original due (day delta, may be negative);
+  /// new start = original start date + advance, time-of-day kept.
+  /// Cross-day spans keep their length: new end = new start date + original
+  /// (end date minus start date) day delta, time-of-day kept. No span -> empty.
+  /// Without a dueAt the advance is zero (span carried over unchanged).
   (DateTime?, DateTime?) _carrySpan(Record row, DateTime nextDue) {
     final start = row.startAt;
     final end = row.endAt;
@@ -365,8 +419,8 @@ class RecordRepository {
     return (newStart, newEnd);
   }
 
-  /// F4：批量完成/取消完成/删除。逐条走单条逻辑，保证循环任务的
-  /// 下一次实例生成与纯克隆回收语义与单条操作完全一致。
+  /// F4 bulk complete/undo/delete. Loops the single-item logic so the next-
+  /// instance spawn and pure-clone reclaim semantics match single edits.
   Future<void> setCompletedBulk(List<String> ids, bool done) async {
     for (final id in ids) {
       await setCompleted(id, done);
@@ -395,14 +449,14 @@ class RecordRepository {
   }
 
   Future<void> removeCheckitem(String itemId) async {
-    // 勾选项也走墓碑，保持同步友好
+    // Checkitems are tombstoned too (sync-friendly).
     final now = DateTime.now();
     await (_db.update(_c)..where((c) => c.id.equals(itemId))).write(
       CheckitemsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
     );
   }
 
-  /// 墓碑删除（禁止物理删除）
+  /// Tombstone delete (physical deletes are forbidden).
   Future<void> deleteRecord(String id) async {
     final now = DateTime.now();
     await _db.transaction(() async {
@@ -413,9 +467,52 @@ class RecordRepository {
         CheckitemsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
       );
     });
+    // L2: deleted records must not fire reminders.
+    await NotificationService.instance.cancelForRecord(id);
   }
 
-  // ---------- 清单 ----------
+  /// L2: (re)schedule reminders for one record from its current fields.
+  /// Errors are swallowed: a scheduling failure (e.g. plugin not initialized
+  /// in tests) must never break the surrounding write.
+  Future<void> _rescheduleReminders(RecordDraft draft) async {
+    try {
+      final instants = computeReminderInstants(
+        dueAt: draft.dueAt,
+        allDay: draft.allDay,
+        offsets: draft.offsets,
+      );
+      if (instants.isEmpty) {
+        await NotificationService.instance.cancelForRecord(draft.id);
+        return;
+      }
+      final timeLabel = _dueTimeLabel(draft.dueAt, draft.allDay);
+      await NotificationService.instance.scheduleForRecord(
+        recordId: draft.id,
+        title: draft.title,
+        timeLabel: timeLabel,
+        offsets: draft.offsets,
+        instants: instants,
+      );
+    } catch (_) {
+      // Never let notification plumbing break a data write.
+    }
+  }
+
+  /// Notification body time semantics, e.g. "14:00" or "9/10 14:00".
+  String? _dueTimeLabel(DateTime? dueAt, bool allDay) {
+    if (dueAt == null) return null;
+    if (allDay) return '全天';
+    final hh = dueAt.hour.toString().padLeft(2, '0');
+    final mm = dueAt.minute.toString().padLeft(2, '0');
+    final now = DateTime.now();
+    final sameDay = dueAt.year == now.year &&
+        dueAt.month == now.month &&
+        dueAt.day == now.day;
+    if (sameDay) return '$hh:$mm';
+    return '${dueAt.month}月${dueAt.day}日 $hh:$mm';
+  }
+
+  // ---------- lists ----------
 
   Future<String> createList(String name) async {
     final now = DateTime.now();
@@ -439,7 +536,7 @@ class RecordRepository {
   }
 
   Future<void> deleteList(String id) async {
-    // 清单删除是墓碑；其中记录回到收件箱（listId 置空）
+    // List delete is a tombstone; its records fall back to the inbox.
     final now = DateTime.now();
     await _db.transaction(() async {
       await (_db.update(_l)..where((l) => l.id.equals(id))).write(
@@ -450,4 +547,22 @@ class RecordRepository {
       );
     });
   }
+}
+
+/// Minimal snapshot of a record's reminder-relevant fields, passed to the
+/// notification scheduler after a write.
+class RecordDraft {
+  RecordDraft({
+    required this.id,
+    required this.title,
+    required this.dueAt,
+    required this.allDay,
+    required this.offsets,
+  });
+
+  final String id;
+  final String title;
+  final DateTime? dueAt;
+  final bool allDay;
+  final List<int> offsets;
 }

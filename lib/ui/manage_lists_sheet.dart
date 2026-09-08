@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers.dart';
 
-/// 清单管理：新建 / 重命名 / 删除
+/// List management: create / rename / delete.
 Future<void> showManageListsSheet(BuildContext context) {
   return showModalBottomSheet(
     context: context,
@@ -46,7 +46,7 @@ class _ManageListsSheetState extends ConsumerState<_ManageListsSheet> {
               child: Text('管理清单',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
             ),
-            // 新建输入
+            // Create input.
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Row(
@@ -159,7 +159,7 @@ class _ManageListsSheetState extends ConsumerState<_ManageListsSheet> {
     );
     if (ok == true) {
       await ref.read(repositoryProvider).deleteList(id);
-      // 若当前正看着这个清单，回到全部
+      // If the deleted list is selected, fall back to all.
       final sel = ref.read(selectedListProvider);
       if (sel == id) ref.read(selectedListProvider.notifier).set(null);
     }

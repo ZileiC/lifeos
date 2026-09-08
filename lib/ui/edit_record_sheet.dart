@@ -3,13 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../data/database.dart';
+import '../data/reminders.dart';
 import '../data/repository.dart';
 import '../data/rrule.dart';
 import '../providers.dart';
 import 'manage_lists_sheet.dart';
 
-/// 新建 / 编辑记录的底部弹层。
-/// existing == null 时是新建模式。
+/// Bottom sheet for creating / editing a record.
+/// existing == null means create mode.
 Future<void> showEditRecordSheet(
   BuildContext context,
   WidgetRef ref, {
@@ -36,14 +37,16 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
   late final TextEditingController _body;
   late final TextEditingController _checkInput;
   String? _listId;
-  // F2b：到期 = 日期 + allDay 标记 + 可空时刻（allDay=false 时时刻必有值）
+  // F2b: due = date + allDay flag + nullable time (time set iff !allDay).
   DateTime? _dueDate;
   TimeOfDay? _dueTime;
   bool _allDay = true;
-  // F1c：区间 = 两次完整「日期→时刻」选择的结果（完整 DateTime 对，
-  // 可跨天；可只设开始；可整体清空）
+  // F1c: span = result of two full "date -> time" picks (full DateTime pair,
+  // cross-day capable; start-only allowed; clearable as a whole).
   DateTime? _startAt;
   DateTime? _endAt;
+  // L2: selected reminder lead-time offsets (minutes before DDL).
+  List<int> _reminders = const [];
   RRule? _rrule;
   bool _dirty = false;
 
@@ -58,9 +61,10 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     _body = TextEditingController(text: _isEdit ? _r.body : '');
     _checkInput = TextEditingController();
     _listId = _isEdit ? _r.listId : ref.read(selectedListProvider);
-    // F2b：allDay=false 才有时刻；allDay=true 时刻视为未设。
-    // 注意 _r 用了 existing!，必须先判 _isEdit 再碰（新建模式下 _r 会 null 崩，
-    // v0.1.2 灰屏事故根因——取证堆栈见 WORKLOG 2026-09-07）。
+    // F2b: time is set only when !allDay; allDay leaves it unset.
+    // NOTE: _r uses existing! — guard with _isEdit before touching it.
+    // (New-create mode would throw null! — the v0.1.2 grey-screen incident,
+    // full stack in WORKLOG 2026-09-07.)
     if (_isEdit) {
       final d = _r.dueAt;
       if (d != null) {
@@ -69,12 +73,13 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
         _dueTime = _allDay ? null : TimeOfDay(hour: d.hour, minute: d.minute);
       }
     }
-    // F1c：区间回显完整时间戳（含日期轴，支持跨天）
+    // F1c: echo spans as full timestamps (with date axis, cross-day capable).
     if (_isEdit) {
       final s = _r.startAt;
       final e = _r.endAt;
       _startAt = s;
       _endAt = e;
+      _reminders = parseReminderOffsets(_r.reminderOffsets);
     }
     _rrule = _isEdit ? RRule.parse(_r.rrule) : null;
   }
@@ -95,6 +100,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     }
     final due = _composeDue();
     final (start, end) = _composeSpan();
+    final reminders = _reminders;
     final repo = ref.read(repositoryProvider);
     if (_isEdit) {
       await repo.updateRecord(
@@ -111,9 +117,11 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
         clearSpan: start == null && end == null,
         rrule: _rrule,
         clearRrule: _rrule == null,
+        reminderOffsetsParam: reminders,
+        clearReminders: false,
       );
     } else {
-      // 新建：把输入框里没按回车的残留勾选项也收进来
+      // Creation: also collect checkitems typed but not yet submitted.
       final items = widget.existing?.items.map((e) => e.content).toList() ?? const [];
       await repo.createRecord(
         title: title,
@@ -124,14 +132,15 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
         startAt: start,
         endAt: end,
         rrule: _rrule,
+        reminderOffsets: reminders,
         checkitems: items,
       );
     }
     if (mounted) Navigator.pop(context);
   }
 
-  /// F2b：合成 dueAt。allDay=true → 当天零点（展示不显时刻）；
-  /// allDay=false → 当天 + 显式时刻（用户显式选 00:00 就是真实 00:00）。
+  /// F2b: compose dueAt. allDay=true -> midnight of that day (no time shown);
+  /// allDay=false -> day + explicit time (a picked 00:00 is a real 00:00).
   DateTime? _composeDue() {
     final d = _dueDate;
     if (d == null) return null;
@@ -141,8 +150,9 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     return day.add(Duration(hours: t.hour, minutes: t.minute));
   }
 
-  /// F1c：合成区间。状态即完整时间戳，无需锚定 dueDate/今天；
-  /// 双边齐时按完整时间戳对调（跨天安全），单边原样保留。
+  /// F1c: compose the span. State is already full timestamps, no anchoring
+  /// to dueDate/today; with both ends, swap by full timestamp (cross-day
+  /// safe); single-sided spans pass through.
   (DateTime?, DateTime?) _composeSpan() {
     var s = _startAt;
     var e = _endAt;
@@ -151,8 +161,9 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     return (s, e);
   }
 
-  /// F2b：统一两步时间选择 = DatePicker → (全天任务 | TimePicker)。
-  /// [initialDate] [initialTime] [initialAllDay] 支持回显；返回是否确认。
+  /// F2b: unified two-step pick = DatePicker -> (all-day | TimePicker).
+  /// [initialDate]/[initialTime]/[initialAllDay] support echo; returns whether
+  /// both steps confirmed.
   Future<bool> _pickDateTimeUnified({
     required ValueChanged<DateTime> onDate,
     required ValueChanged<(TimeOfDay?, bool)> onTimeResolved,
@@ -170,7 +181,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     if (pickedDate == null || !mounted) return false;
     onDate(pickedDate);
 
-    // 时刻步骤：底部弹层，显式提供「全天任务」选项
+    // Time step: bottom sheet with an explicit all-day option.
     final resolved = await showModalBottomSheet<(TimeOfDay?, bool)>(
       context: context,
       builder: (ctx) => _TimeStepSheet(
@@ -183,7 +194,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     return true;
   }
 
-  /// F2b：到期时间 = 统一两步流程（日期 → 全天/时刻）
+  /// F2b: due = unified two-step flow (date -> all-day/time).
   Future<void> _editDue() async {
     await _pickDateTimeUnified(
       initialDate: _dueDate,
@@ -198,13 +209,14 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     );
   }
 
-  /// F1c：区间 = 两次完整的「日期→时刻」选择。
-  /// 开始：DatePicker → _TimeStepSheet；结束同流程，日期默认 = 开始日期（可改，
-  /// 支持跨天）。可只设开始（结束侧任意一步取消）；「清空时间段」另有入口。
+  /// F1c: span = two full "date -> time" picks.
+  /// Start: DatePicker -> _TimeStepSheet; end follows the same flow with its
+  /// date defaulting to the start date (editable -> cross-day). Start-only is
+  /// allowed (cancel on either end step); "clear span" has its own entry.
   Future<void> _editSpan() async {
     final now = DateTime.now();
 
-    // —— 开始侧 ——
+    // ---- start side ----
     final startDate = await showDatePicker(
       context: context,
       initialDate: _startAt ?? _dueDate ?? now,
@@ -223,7 +235,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     if (startResolved == null || !mounted) return; // 取消 = 不改动
     final (startTime, startAllDay) = startResolved;
 
-    // —— 结束侧（日期默认 = 开始日期，可改 → 跨天）——
+    // ---- end side (date defaults to start date; editable -> cross-day) ----
     final existingEndDay = _endAt == null
         ? null
         : DateTime(_endAt!.year, _endAt!.month, _endAt!.day);
@@ -236,7 +248,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
       helpText: '选择结束日期',
     );
     if (endDate == null || !mounted) {
-      // 结束侧取消 = 只保留开始
+      // End-side cancel = keep start only.
       setState(() {
         _startAt = DateTime(startDate.year, startDate.month, startDate.day)
             .add(Duration(
@@ -254,7 +266,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
           : TimeOfDay(hour: _endAt!.hour, minute: _endAt!.minute),
     );
     if (endResolved == null || !mounted) {
-      // 时刻步骤取消 = 只保留开始
+      // Time-step cancel = keep start only.
       setState(() {
         _startAt = DateTime(startDate.year, startDate.month, startDate.day)
             .add(Duration(
@@ -272,7 +284,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
               hours: startTime?.hour ?? 0, minutes: startTime?.minute ?? 0));
       _endAt = DateTime(endDate.year, endDate.month, endDate.day).add(Duration(
           hours: endTime?.hour ?? 0, minutes: endTime?.minute ?? 0));
-      // 结束早于开始按完整时间戳对调（跨天安全）
+      // Swap by full timestamp when end < start (cross-day safe).
       if (_startAt != null && _endAt != null && _endAt!.isBefore(_startAt!)) {
         final t = _startAt;
         _startAt = _endAt;
@@ -281,9 +293,10 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     });
   }
 
-  /// F1c：区间侧的时刻步骤 = _TimeStepSheet（全天任务 | 指定时刻）。
-  /// 返回 (TimeOfDay?, bool)；null = 用户取消。
-  /// 区间的全天语义：allDay=true → 时刻记 null（存当天零点，展示不显时刻）。
+  /// F1c: per-side time step = _TimeStepSheet (all-day | pick a time).
+  /// Returns (TimeOfDay?, bool); null = user cancelled.
+  /// All-day semantics: allDay=true stores a null time (midnight of the day;
+  /// not shown as a time).
   Future<(TimeOfDay?, bool)?> _pickSpanTimeStep({
     required DateTime initialDate,
     TimeOfDay? initialTime,
@@ -295,6 +308,15 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
         initialAllDay: initialTime == null,
       ),
     );
+  }
+
+  /// L2: reminder lead-time picker (multi-select bottom sheet).
+  Future<void> _pickReminders() async {
+    final picked = await showModalBottomSheet<List<int>>(
+      context: context,
+      builder: (ctx) => _ReminderPickerSheet(initial: _reminders),
+    );
+    if (picked != null && mounted) setState(() => _reminders = picked);
   }
 
   Future<void> _pickRrule() async {
@@ -325,7 +347,8 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
       ),
     );
     if (choice != null || mounted) {
-      // choice == null 且用户点了"不重复"也进来；取消弹层（点外部）不改变
+      // Also reached when the user tapped "no repeat" (choice == null);
+      // dismissing the sheet by tap-outside leaves the rule unchanged.
       if (choice != null || _rrule != null) setState(() => _rrule = choice);
     }
   }
@@ -344,7 +367,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 标题输入
+            // Title input.
             TextField(
               controller: _title,
               autofocus: !_isEdit,
@@ -358,7 +381,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 8),
-            // 正文
+            // Body.
             TextField(
               controller: _body,
               style: const TextStyle(fontSize: 15, height: 1.5),
@@ -372,7 +395,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
             ),
             const SizedBox(height: 16),
 
-            // 勾选项（仅编辑模式展示已有项）
+            // Checkitems (existing ones show in edit mode only).
             if (_isEdit) ...[
               for (final item in widget.existing!.items)
                 if (item.deletedAt == null)
@@ -431,7 +454,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
               const SizedBox(height: 12),
             ],
 
-            // 属性行：清单 / 到期 / 时间段 / 循环
+            // Property chips: list / due / span / repeat.
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -455,7 +478,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
                     }
                   },
                 ),
-                // F2b：到期 = 统一两步（日期 → 全天/时刻）
+                // F2b: due = unified two-step (date -> all-day/time).
                 ActionChip(
                   avatar: Icon(Icons.event_outlined,
                       size: 18,
@@ -465,7 +488,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
                   label: Text(_dueChipLabel),
                   onPressed: _editDue,
                 ),
-                // F1b：时间段 = 两步 TimePicker；已设可清空
+                // F1c: span = two full date->time picks; clearable once set.
                 ActionChip(
                   avatar: Icon(Icons.timelapse_rounded,
                       size: 18,
@@ -494,6 +517,17 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
                     label: Text(_rrule?.label ?? '不重复'),
                     onPressed: _pickRrule,
                   ),
+                // L2: reminder lead times (multi-select); needs a due date.
+                if (_dueDate != null)
+                  ActionChip(
+                    avatar: Icon(Icons.notifications_active_outlined,
+                        size: 18,
+                        color: _reminders.isEmpty
+                            ? theme.colorScheme.onSurfaceVariant
+                            : theme.colorScheme.primary),
+                    label: Text(_reminderChipLabel),
+                    onPressed: _pickReminders,
+                  ),
                 if (_dueDate != null)
                   ActionChip(
                     avatar: const Icon(Icons.close_rounded, size: 18),
@@ -503,6 +537,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
                       _dueTime = null;
                       _allDay = true;
                       _rrule = null;
+                      _reminders = const [];
                     }),
                   ),
               ],
@@ -548,7 +583,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
 
   bool get _hasSpan => _startAt != null || _endAt != null;
 
-  /// F2b：到期 chip 文案（全天 / 具体时刻）
+  /// F2b: due chip label (all-day / exact time).
   String get _dueChipLabel {
     final d = _dueDate;
     if (d == null) return '到期日';
@@ -561,7 +596,20 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
     return '$date ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
 
-  /// F1c：时间段 chip 文案（带日期轴；跨天显示两端日期）
+  /// L2: reminder chip label, e.g. "15 min / 1 hour before" or none.
+  String get _reminderChipLabel {
+    if (_reminders.isEmpty) return '提前提醒';
+    String one(int m) {
+      if (m == 0) return '准时';
+      if (m < 60) return '$m分钟';
+      if (m == 60) return '1小时';
+      if (m < 1440) return '${m ~/ 60}小时';
+      return '1天';
+    }
+    return '提前 ${_reminders.map(one).join(' / ')}';
+  }
+
+  /// F1c: span chip label (date axis; cross-day shows both dates).
   String get _spanChipLabel {
     final s = _startAt;
     final e = _endAt;
@@ -622,8 +670,9 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
   }
 }
 
-/// F2b：时刻选择步骤的底部弹层——「全天任务」显式选项 + 标准 TimePicker。
-/// 返回 (TimeOfDay?, bool)：全天 = (null, true)；具体时刻 = (t, false)。
+/// F2b: time-step bottom sheet — an explicit all-day option plus
+/// the standard TimePicker. Returns (TimeOfDay?, bool): all-day =
+/// (null, true); specific time = (t, false).
 class _TimeStepSheet extends StatefulWidget {
   const _TimeStepSheet({this.initialTime, this.initialAllDay = true});
 
@@ -676,6 +725,96 @@ class _TimeStepSheetState extends State<_TimeStepSheet> {
             },
           ),
           const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+/// L2: multi-select reminder lead-time picker.
+/// Multi-select rationale: pairing a heads-up ("1 day / 1 hour before") with
+/// a last-call ("15 minutes / on time") is the common pattern; single-select
+/// would force a lossy choice.
+class _ReminderPickerSheet extends StatefulWidget {
+  const _ReminderPickerSheet({required this.initial});
+
+  final List<int> initial;
+
+  @override
+  State<_ReminderPickerSheet> createState() => _ReminderPickerSheetState();
+}
+
+class _ReminderPickerSheetState extends State<_ReminderPickerSheet> {
+  late final Set<int> _selected = widget.initial.toSet();
+
+  String _label(int m) {
+    if (m == 0) return '准时';
+    if (m < 60) return '$m分钟';
+    if (m == 60) return '1小时';
+    if (m < 1440) return '${m ~/ 60}小时';
+    return '1天';
+  }
+
+  String _sub(int m) {
+    if (m == 0) return '到期那一刻提醒';
+    if (m < 60) return '到期前 $m 分钟';
+    if (m == 1440) return '到期前 1 天';
+    return '到期前 ${m ~/ 60} 小时';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('提前提醒（可多选）',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final m in kReminderOffsetPresets)
+                  CheckboxListTile(
+                    value: _selected.contains(m),
+                    onChanged: (v) => setState(() {
+                      if (v == true) {
+                        _selected.add(m);
+                      } else {
+                        _selected.remove(m);
+                      }
+                    }),
+                    title: Text(_label(m)),
+                    subtitle: Text(_sub(m)),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    dense: true,
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _selected.isEmpty ? '不设置提醒' : '已选 ${_selected.length} 项',
+                    style: TextStyle(
+                        fontSize: 13, color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ),
+                FilledButton(
+                  onPressed: () =>
+                      Navigator.pop(context, _selected.toList()),
+                  child: const Text('确定'),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

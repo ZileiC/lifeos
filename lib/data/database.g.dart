@@ -578,6 +578,17 @@ class $RecordsTable extends Records with TableInfo<$RecordsTable, Record> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _reminderOffsetsMeta = const VerificationMeta(
+    'reminderOffsets',
+  );
+  @override
+  late final GeneratedColumn<String> reminderOffsets = GeneratedColumn<String>(
+    'reminder_offsets',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _completedAtMeta = const VerificationMeta(
     'completedAt',
   );
@@ -635,6 +646,7 @@ class $RecordsTable extends Records with TableInfo<$RecordsTable, Record> {
     endAt,
     rrule,
     nextInstanceId,
+    reminderOffsets,
     completedAt,
     createdAt,
     updatedAt,
@@ -722,6 +734,15 @@ class $RecordsTable extends Records with TableInfo<$RecordsTable, Record> {
         ),
       );
     }
+    if (data.containsKey('reminder_offsets')) {
+      context.handle(
+        _reminderOffsetsMeta,
+        reminderOffsets.isAcceptableOrUnknown(
+          data['reminder_offsets']!,
+          _reminderOffsetsMeta,
+        ),
+      );
+    }
     if (data.containsKey('completed_at')) {
       context.handle(
         _completedAtMeta,
@@ -806,6 +827,10 @@ class $RecordsTable extends Records with TableInfo<$RecordsTable, Record> {
         DriftSqlType.string,
         data['${effectivePrefix}next_instance_id'],
       ),
+      reminderOffsets: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reminder_offsets'],
+      ),
       completedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}completed_at'],
@@ -843,6 +868,7 @@ class Record extends DataClass implements Insertable<Record> {
   final DateTime? endAt;
   final String? rrule;
   final String? nextInstanceId;
+  final String? reminderOffsets;
   final DateTime? completedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -859,6 +885,7 @@ class Record extends DataClass implements Insertable<Record> {
     this.endAt,
     this.rrule,
     this.nextInstanceId,
+    this.reminderOffsets,
     this.completedAt,
     required this.createdAt,
     required this.updatedAt,
@@ -889,6 +916,9 @@ class Record extends DataClass implements Insertable<Record> {
     }
     if (!nullToAbsent || nextInstanceId != null) {
       map['next_instance_id'] = Variable<String>(nextInstanceId);
+    }
+    if (!nullToAbsent || reminderOffsets != null) {
+      map['reminder_offsets'] = Variable<String>(reminderOffsets);
     }
     if (!nullToAbsent || completedAt != null) {
       map['completed_at'] = Variable<DateTime>(completedAt);
@@ -926,6 +956,9 @@ class Record extends DataClass implements Insertable<Record> {
       nextInstanceId: nextInstanceId == null && nullToAbsent
           ? const Value.absent()
           : Value(nextInstanceId),
+      reminderOffsets: reminderOffsets == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reminderOffsets),
       completedAt: completedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(completedAt),
@@ -954,6 +987,7 @@ class Record extends DataClass implements Insertable<Record> {
       endAt: serializer.fromJson<DateTime?>(json['endAt']),
       rrule: serializer.fromJson<String?>(json['rrule']),
       nextInstanceId: serializer.fromJson<String?>(json['nextInstanceId']),
+      reminderOffsets: serializer.fromJson<String?>(json['reminderOffsets']),
       completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -975,6 +1009,7 @@ class Record extends DataClass implements Insertable<Record> {
       'endAt': serializer.toJson<DateTime?>(endAt),
       'rrule': serializer.toJson<String?>(rrule),
       'nextInstanceId': serializer.toJson<String?>(nextInstanceId),
+      'reminderOffsets': serializer.toJson<String?>(reminderOffsets),
       'completedAt': serializer.toJson<DateTime?>(completedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -994,6 +1029,7 @@ class Record extends DataClass implements Insertable<Record> {
     Value<DateTime?> endAt = const Value.absent(),
     Value<String?> rrule = const Value.absent(),
     Value<String?> nextInstanceId = const Value.absent(),
+    Value<String?> reminderOffsets = const Value.absent(),
     Value<DateTime?> completedAt = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -1012,6 +1048,9 @@ class Record extends DataClass implements Insertable<Record> {
     nextInstanceId: nextInstanceId.present
         ? nextInstanceId.value
         : this.nextInstanceId,
+    reminderOffsets: reminderOffsets.present
+        ? reminderOffsets.value
+        : this.reminderOffsets,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -1032,6 +1071,9 @@ class Record extends DataClass implements Insertable<Record> {
       nextInstanceId: data.nextInstanceId.present
           ? data.nextInstanceId.value
           : this.nextInstanceId,
+      reminderOffsets: data.reminderOffsets.present
+          ? data.reminderOffsets.value
+          : this.reminderOffsets,
       completedAt: data.completedAt.present
           ? data.completedAt.value
           : this.completedAt,
@@ -1055,6 +1097,7 @@ class Record extends DataClass implements Insertable<Record> {
           ..write('endAt: $endAt, ')
           ..write('rrule: $rrule, ')
           ..write('nextInstanceId: $nextInstanceId, ')
+          ..write('reminderOffsets: $reminderOffsets, ')
           ..write('completedAt: $completedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -1076,6 +1119,7 @@ class Record extends DataClass implements Insertable<Record> {
     endAt,
     rrule,
     nextInstanceId,
+    reminderOffsets,
     completedAt,
     createdAt,
     updatedAt,
@@ -1096,6 +1140,7 @@ class Record extends DataClass implements Insertable<Record> {
           other.endAt == this.endAt &&
           other.rrule == this.rrule &&
           other.nextInstanceId == this.nextInstanceId &&
+          other.reminderOffsets == this.reminderOffsets &&
           other.completedAt == this.completedAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
@@ -1114,6 +1159,7 @@ class RecordsCompanion extends UpdateCompanion<Record> {
   final Value<DateTime?> endAt;
   final Value<String?> rrule;
   final Value<String?> nextInstanceId;
+  final Value<String?> reminderOffsets;
   final Value<DateTime?> completedAt;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -1131,6 +1177,7 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     this.endAt = const Value.absent(),
     this.rrule = const Value.absent(),
     this.nextInstanceId = const Value.absent(),
+    this.reminderOffsets = const Value.absent(),
     this.completedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -1149,6 +1196,7 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     this.endAt = const Value.absent(),
     this.rrule = const Value.absent(),
     this.nextInstanceId = const Value.absent(),
+    this.reminderOffsets = const Value.absent(),
     this.completedAt = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -1170,6 +1218,7 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     Expression<DateTime>? endAt,
     Expression<String>? rrule,
     Expression<String>? nextInstanceId,
+    Expression<String>? reminderOffsets,
     Expression<DateTime>? completedAt,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -1188,6 +1237,7 @@ class RecordsCompanion extends UpdateCompanion<Record> {
       if (endAt != null) 'end_at': endAt,
       if (rrule != null) 'rrule': rrule,
       if (nextInstanceId != null) 'next_instance_id': nextInstanceId,
+      if (reminderOffsets != null) 'reminder_offsets': reminderOffsets,
       if (completedAt != null) 'completed_at': completedAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -1208,6 +1258,7 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     Value<DateTime?>? endAt,
     Value<String?>? rrule,
     Value<String?>? nextInstanceId,
+    Value<String?>? reminderOffsets,
     Value<DateTime?>? completedAt,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -1226,6 +1277,7 @@ class RecordsCompanion extends UpdateCompanion<Record> {
       endAt: endAt ?? this.endAt,
       rrule: rrule ?? this.rrule,
       nextInstanceId: nextInstanceId ?? this.nextInstanceId,
+      reminderOffsets: reminderOffsets ?? this.reminderOffsets,
       completedAt: completedAt ?? this.completedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -1270,6 +1322,9 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     if (nextInstanceId.present) {
       map['next_instance_id'] = Variable<String>(nextInstanceId.value);
     }
+    if (reminderOffsets.present) {
+      map['reminder_offsets'] = Variable<String>(reminderOffsets.value);
+    }
     if (completedAt.present) {
       map['completed_at'] = Variable<DateTime>(completedAt.value);
     }
@@ -1302,6 +1357,7 @@ class RecordsCompanion extends UpdateCompanion<Record> {
           ..write('endAt: $endAt, ')
           ..write('rrule: $rrule, ')
           ..write('nextInstanceId: $nextInstanceId, ')
+          ..write('reminderOffsets: $reminderOffsets, ')
           ..write('completedAt: $completedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -2093,6 +2149,7 @@ typedef $$RecordsTableCreateCompanionBuilder = RecordsCompanion Function({
   Value<DateTime?> endAt,
   Value<String?> rrule,
   Value<String?> nextInstanceId,
+  Value<String?> reminderOffsets,
   Value<DateTime?> completedAt,
   required DateTime createdAt,
   required DateTime updatedAt,
@@ -2111,6 +2168,7 @@ typedef $$RecordsTableUpdateCompanionBuilder = RecordsCompanion Function({
   Value<DateTime?> endAt,
   Value<String?> rrule,
   Value<String?> nextInstanceId,
+  Value<String?> reminderOffsets,
   Value<DateTime?> completedAt,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
@@ -2179,6 +2237,11 @@ class $$RecordsTableFilterComposer
 
   ColumnFilters<String> get nextInstanceId => $composableBuilder(
     column: $table.nextInstanceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reminderOffsets => $composableBuilder(
+    column: $table.reminderOffsets,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2267,6 +2330,11 @@ class $$RecordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get reminderOffsets => $composableBuilder(
+    column: $table.reminderOffsets,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get completedAt => $composableBuilder(
     column: $table.completedAt,
     builder: (column) => ColumnOrderings(column),
@@ -2332,6 +2400,11 @@ class $$RecordsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get reminderOffsets => $composableBuilder(
+    column: $table.reminderOffsets,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get completedAt => $composableBuilder(
     column: $table.completedAt,
     builder: (column) => column,
@@ -2386,6 +2459,7 @@ class $$RecordsTableTableManager
                 Value<DateTime?> endAt = const Value.absent(),
                 Value<String?> rrule = const Value.absent(),
                 Value<String?> nextInstanceId = const Value.absent(),
+                Value<String?> reminderOffsets = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -2403,6 +2477,7 @@ class $$RecordsTableTableManager
                 endAt: endAt,
                 rrule: rrule,
                 nextInstanceId: nextInstanceId,
+                reminderOffsets: reminderOffsets,
                 completedAt: completedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -2422,6 +2497,7 @@ class $$RecordsTableTableManager
                 Value<DateTime?> endAt = const Value.absent(),
                 Value<String?> rrule = const Value.absent(),
                 Value<String?> nextInstanceId = const Value.absent(),
+                Value<String?> reminderOffsets = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -2439,6 +2515,7 @@ class $$RecordsTableTableManager
                 endAt: endAt,
                 rrule: rrule,
                 nextInstanceId: nextInstanceId,
+                reminderOffsets: reminderOffsets,
                 completedAt: completedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

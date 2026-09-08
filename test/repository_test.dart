@@ -65,7 +65,7 @@ void main() {
     });
 
     test('循环完成：时间段随行到下一次实例（日期推进、时刻保留）', () async {
-      // 2026-09-04 周五，每周一循环；区间 14:00–15:50
+      // 2026-09-04 is a Friday; weekly(1) rule; span 14:00-15:50.
       final due = DateTime(2026, 9, 4);
       final id = await repo.createRecord(
         title: '每周的会',
@@ -76,19 +76,19 @@ void main() {
       );
       await repo.setCompleted(id, true);
 
-      // 下一次实例：2026-09-07 周一
+      // Next instance: Monday 2026-09-07.
       final all = await db.select(db.records).get();
       final next = all.firstWhere((r) => r.id != id);
       expect(next.dueAt, DateTime(2026, 9, 7));
-      // 时刻保留
+      // times kept.
       expect(next.startAt!.hour, 14);
       expect(next.startAt!.minute, 0);
       expect(next.endAt!.hour, 15);
       expect(next.endAt!.minute, 50);
-      // 日期推进到下一次
+      // date advanced to the next occurrence.
       expect(next.startAt!.day, 7);
       expect(next.endAt!.day, 7);
-      // 血缘指针记下
+      // lineage pointer recorded.
       final origin = await (db.select(db.records)..where((r) => r.id.equals(id)))
           .getSingle();
       expect(origin.nextInstanceId, next.id);
@@ -147,18 +147,18 @@ void main() {
       expect(all.length, 2, reason: '完成时生成下一次实例');
       final next = all.firstWhere((r) => r.id != id);
 
-      // 撤销完成
+      // Undo completion.
       await repo.setCompleted(id, false);
       all = await db.select(db.records).get();
 
-      // 纯克隆实例被墓碑回收
+      // The pure-clone instance is tombstone-reclaimed.
       final nextRow = all.firstWhere((r) => r.id == next.id);
       expect(nextRow.deletedAt, isNotNull, reason: '未被编辑过的实例应回收');
-      // 原记录回到未完成
+      // The origin is back to uncompleted.
       final origin = all.firstWhere((r) => r.id == id);
       expect(origin.completedAt, isNull);
       expect(origin.nextInstanceId, isNull, reason: '血缘指针清空');
-      // 回到未完成视图
+      // Back in the open (inbox) view.
       final inbox = await repo.watchRecords(kind: ViewKind.inbox).first;
       expect(inbox.any((r) => r.record.id == id), isTrue);
     });
@@ -170,14 +170,14 @@ void main() {
       final all = await db.select(db.records).get();
       final next = all.firstWhere((r) => r.id != id);
 
-      // 用户在实例上做了工作：改标题
+      // The user did work on the instance: changed the title.
       await repo.updateRecord(next.id, title: '改过的下一次');
 
-      // 撤销完成
+      // Undo completion.
       await repo.setCompleted(id, false);
       final after = await db.select(db.records).get();
 
-      // 被编辑过的实例保留（deletedAt 仍为空）
+      // The edited instance survives (deletedAt still null).
       final nextRow = after.firstWhere((r) => r.id == next.id);
       expect(nextRow.deletedAt, isNull, reason: '编辑过的实例应保留');
       expect(nextRow.title, '改过的下一次');
@@ -189,15 +189,15 @@ void main() {
           title: '周报', dueAt: DateTime(2026, 9, 4), rrule: const RRule.weekly(5));
       await repo.setCompleted(id, true);
 
-      // 已完成视图能查到这条
+      // The row is visible in the done view.
       var doneRows = await repo.watchRecords(kind: ViewKind.done).first;
       expect(doneRows.any((r) => r.record.id == id), isTrue,
           reason: '已完成视图必须有已完成记录（撤销入口的真实场景）');
 
-      // 从已完成视图语义撤销（与收件箱同一条 setCompleted 路径）
+      // Undo from the done-view context (same setCompleted path as inbox).
       await repo.setCompleted(id, false);
 
-      // 立即离开已完成视图，回到未完成视图
+      // It leaves the done view and returns to the open view.
       doneRows = await repo.watchRecords(kind: ViewKind.done).first;
       expect(doneRows.any((r) => r.record.id == id), isFalse,
           reason: '撤销后应离开已完成视图');
@@ -205,7 +205,7 @@ void main() {
       expect(inbox.any((r) => r.record.id == id), isTrue,
           reason: '撤销后按规则回到收件箱');
 
-      // 纯克隆实例一并回收（复用 _isPureClone 判定）
+// see test name
       final all = await db.select(db.records).get();
       final nextRow = all.firstWhere((r) => r.rrule != null && r.id != id);
       expect(nextRow.deletedAt, isNotNull, reason: '纯克隆实例应回收');
@@ -224,7 +224,7 @@ void main() {
     });
 
     test('F1c：区间可带日期轴，不锚定 dueAt（存完整时间戳）', () async {
-      // dueAt 是 9 月 4 日，区间开始 9 月 10 日 14:00 —— 必须原样落库
+      // dueAt is 9/4 while the span starts 9/10 14:00 — must persist verbatim.
       final id = await repo.createRecord(
           title: '下节课',
           dueAt: DateTime(2026, 9, 4),
@@ -249,7 +249,7 @@ void main() {
     });
 
     test('F1c：跨天区间 end 早于 start 按完整时间戳对调（非分钟数）', () async {
-      // 9-11 08:00 起、9-10 22:00 止（结束时间戳更早）→ 对调
+      // Start 9-11 08:00, end 9-10 22:00 (end timestamp earlier) -> swap.
       final id = await repo.createRecord(
           title: '反的跨天',
           startAt: DateTime(2026, 9, 11, 8, 0),
@@ -262,7 +262,7 @@ void main() {
     });
 
     test('allDay=true 的循环任务：下一次实例携带全天标记与时刻', () async {
-      // 全天循环（无时刻区间），下一次也应全天、无区间
+// (see test name)
       final id = await repo.createRecord(
         title: '每天站会',
         dueAt: DateTime(2026, 9, 4),
@@ -279,7 +279,7 @@ void main() {
 
     test('allDay=false 的循环任务：下一次实例携带真实 00:00 时刻与全天标记',
         () async {
-      // 用户显式选了 00:00（真实零点，非全天）——废弃零点哨兵后必须如实保留
+// see test name
       final id = await repo.createRecord(
         title: '午夜任务',
         dueAt: DateTime(2026, 9, 4, 0, 0),
@@ -296,7 +296,7 @@ void main() {
     });
 
     test('F1c：循环下一次实例——区间带日期轴时日期推进、时刻保留', () async {
-      // 每周一循环；dueAt = 9-4（周五）；区间 9-10 14:00–15:50
+// see test name
       final id = await repo.createRecord(
         title: '下周的会',
         dueAt: DateTime(2026, 9, 4),
@@ -307,7 +307,7 @@ void main() {
       await repo.setCompleted(id, true);
       final next = (await db.select(db.records).get())
           .firstWhere((r) => r.id != id);
-      // 到期推进到 9-7（下周一）；区间日期推进同样的天数（3 天）
+      // Due advances to 9-7 (next Monday); the span advances the same 3 days.
       expect(next.dueAt, DateTime(2026, 9, 7));
       expect(next.startAt, DateTime(2026, 9, 13, 14, 0),
           reason: '区间日期随到期推进 3 天，时刻保留');
@@ -315,7 +315,7 @@ void main() {
     });
 
     test('F1c：跨天循环区间——下一次实例保持跨度', () async {
-      // dueAt = 9-4；区间 9-10 20:00 → 9-12 08:30（跨度 2 天）
+// see test name
       final id = await repo.createRecord(
         title: '出差循环',
         dueAt: DateTime(2026, 9, 4),
@@ -326,15 +326,15 @@ void main() {
       await repo.setCompleted(id, true);
       final next = (await db.select(db.records).get())
           .firstWhere((r) => r.id != id);
-      // 到期推进 1 天（9-5）；新开始 = 9-11 20:00（区间日期也推进 1 天）
+      // Due advances 1 day (9-5); new start = 9-11 20:00 (span advanced too).
       expect(next.startAt, DateTime(2026, 9, 11, 20, 0));
-      // 跨度保持 2 天：新结束 = 9-13 08:30
+      // Span kept at 2 days: new end = 9-13 08:30.
       expect(next.endAt, DateTime(2026, 9, 13, 8, 30),
           reason: '跨天区间的天数差在下一次实例中保持');
     });
 
     test('F1c：跨天循环区间边界——区间开始早于 dueAt（过期的区间）', () async {
-      // dueAt = 9-10；区间 9-4 09:00 → 9-4 11:00（区间在 dueAt 之前）
+// see test name
       final id = await repo.createRecord(
         title: '过期区间循环',
         dueAt: DateTime(2026, 9, 10),
@@ -345,7 +345,7 @@ void main() {
       await repo.setCompleted(id, true);
       final next = (await db.select(db.records).get())
           .firstWhere((r) => r.id != id);
-      // 到期推进 1 天（9-11）；区间日期轴同样推进 1 天 → 9-5（不重新锚定）
+      // Due advances 1 day (9-11); the span advances 1 day too -> 9-5 (no re-anchoring).
       expect(next.startAt, DateTime(2026, 9, 5, 9, 0),
           reason: '区间按原相对关系推进，不锚定到期日');
       expect(next.endAt, DateTime(2026, 9, 5, 11, 0));
@@ -377,7 +377,7 @@ void main() {
       await repo.setCompletedBulk([a, b, c], true);
 
       final all = await db.select(db.records).get();
-      // A、C 各生成一个下一次实例 → 3 原始 + 2 实例 = 5
+// see test name
       expect(all.length, 5, reason: '循环任务批量完成的实例生成与单条一致');
       expect(all.firstWhere((r) => r.id == a).completedAt, isNotNull);
       expect(all.firstWhere((r) => r.id == b).completedAt, isNotNull);
@@ -395,7 +395,7 @@ void main() {
 
       await repo.setCompletedBulk([a, b], false);
       all = await db.select(db.records).get();
-      // 两个纯克隆实例都被回收（墓碑标记，行仍在）
+// (see test name)
       expect(all.length, 4);
       final live = all.where((r) => r.deletedAt == null).toList();
       expect(live.length, 2, reason: '只剩两条原记录');

@@ -3,18 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'data/database.dart';
 import 'data/repository.dart';
 
-/// 全局数据库单例
+/// Global database singleton.
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
   ref.onDispose(db.close);
   return db;
 });
 
-/// 仓库
+/// Repository.
 final repositoryProvider = Provider<RecordRepository>(
     (ref) => RecordRepository(ref.watch(databaseProvider)));
 
-/// 当前视图
+/// Current view kind.
 class ViewKindNotifier extends Notifier<ViewKind> {
   @override
   ViewKind build() => ViewKind.inbox;
@@ -24,7 +24,7 @@ class ViewKindNotifier extends Notifier<ViewKind> {
 final viewKindProvider =
     NotifierProvider<ViewKindNotifier, ViewKind>(ViewKindNotifier.new);
 
-/// 当前选中的清单（null = 全部）
+/// Currently selected list (null = all).
 class SelectedListNotifier extends Notifier<String?> {
   @override
   String? build() => null;
@@ -34,7 +34,7 @@ class SelectedListNotifier extends Notifier<String?> {
 final selectedListProvider =
     NotifierProvider<SelectedListNotifier, String?>(SelectedListNotifier.new);
 
-/// 当前视图的记录流
+/// Current view kind.的记录流
 final recordsProvider = StreamProvider<List<RecordWithItems>>((ref) {
   final repo = ref.watch(repositoryProvider);
   final kind = ref.watch(viewKindProvider);
@@ -42,7 +42,7 @@ final recordsProvider = StreamProvider<List<RecordWithItems>>((ref) {
   return repo.watchRecords(kind: kind, listId: listId);
 });
 
-/// 清单流
+/// List stream.
 final listsProvider = StreamProvider<List<ListRecord>>((ref) {
   return ref.watch(repositoryProvider).watchLists();
 });
