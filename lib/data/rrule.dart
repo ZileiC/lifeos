@@ -45,7 +45,7 @@ class RRule {
         return d.add(const Duration(days: 1));
     }
     if (code.startsWith('weekly:')) {
-      final target = int.parse(code.substring(7)); // 1=周一
+      final target = int.parse(code.substring(7)); // 1=Mon
       final current = d.weekday; // Dart: 1=Mon..7=Sun, matches our encoding
       final diff = (target - current) % 7;
       return d.add(Duration(days: diff == 0 ? 7 : diff));

@@ -34,7 +34,7 @@ class SelectedListNotifier extends Notifier<String?> {
 final selectedListProvider =
     NotifierProvider<SelectedListNotifier, String?>(SelectedListNotifier.new);
 
-/// Current view kind.的记录流
+/// Record stream for the current view kind.
 final recordsProvider = StreamProvider<List<RecordWithItems>>((ref) {
   final repo = ref.watch(repositoryProvider);
   final kind = ref.watch(viewKindProvider);

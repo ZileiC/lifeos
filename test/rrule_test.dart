@@ -20,7 +20,7 @@ void main() {
   });
 
   group('RRule.nextAfter', () {
-    // 2026-09-04 是周五
+    // 2026-09-04 is a Friday.
     final fri = DateTime(2026, 9, 4);
 
     test('daily：次日', () {
@@ -28,25 +28,26 @@ void main() {
     });
 
     test('weekly：本周已过则下周', () {
-      // 周五 -> 每周一：下周一是 9-7
+      // Friday -> weekly Monday: next Monday is 9-7.
       expect(RRule.weekly(1).nextAfter(fri), DateTime(2026, 9, 7));
-      // 周五 -> 每周五：下周五 9-11
+      // Friday -> weekly Friday: next Friday is 9-11.
       expect(RRule.weekly(5).nextAfter(fri), DateTime(2026, 9, 11));
-      // 周五 -> 每周日：9-6
+      // Friday -> weekly Sunday: 9-6.
       expect(RRule.weekly(7).nextAfter(fri), DateTime(2026, 9, 6));
     });
 
     test('monthly：本月未过用本月，过了用下月', () {
-      // 9-4 -> 每月 15 日：9-15
+      // 9-4 -> monthly 15th: 9-15.
       expect(RRule.monthly(15).nextAfter(fri), DateTime(2026, 9, 15));
-      // 9-4 -> 每月 4 日：10-4
+      // 9-4 -> monthly 4th: 10-4.
       expect(RRule.monthly(4).nextAfter(fri), DateTime(2026, 10, 4));
-      // 9-4 -> 每月 31 日：9 月没有 31 日 -> 10-31
+      // 9-4 -> monthly 31st: September has no 31st -> 10-31.
       expect(RRule.monthly(31).nextAfter(fri), DateTime(2026, 10, 31));
-      // 1-31 -> 每月 31 日：2 月没有 31 日 -> 月末截断到 2-28（不跳月）
+      // 1-31 -> monthly 31st: February has no 31st -> clamp to month end
+      // 2-28 (no month skip).
       expect(RRule.monthly(31).nextAfter(DateTime(2026, 1, 31)),
           DateTime(2026, 2, 28));
-      // 闰年 2 月截断到 29
+      // Leap-year February clamps to 29.
       expect(RRule.monthly(31).nextAfter(DateTime(2024, 1, 31)),
           DateTime(2024, 2, 29));
     });

@@ -19,8 +19,13 @@ class RecordWithItems {
 /// Repository: all writes go through here to keep UUID / updated_at /
 /// tombstone consistency.
 class RecordRepository {
-  RecordRepository(this._db);
+  RecordRepository(this._db, {ReminderScheduler? reminders})
+      : _reminders = reminders ?? NotificationService.instance;
+
   final AppDatabase _db;
+
+  /// Test seam: production defaults to the notification plugin singleton.
+  final ReminderScheduler _reminders;
 
   static const _uuid = Uuid();
 
@@ -295,6 +300,10 @@ class RecordRepository {
                 startAt: Value(nextStart),
                 endAt: Value(nextEnd),
                 rrule: Value(row.rrule),
+                // L2: the next instance must carry the reminder lead times;
+                // otherwise editing/pinning it reschedules with an empty list
+                // and silently cancels its reminders (D1 regression).
+                reminderOffsets: Value(row.reminderOffsets),
                 createdAt: now,
                 updatedAt: now,
               ));
@@ -328,7 +337,7 @@ class RecordRepository {
           ));
         }
         // L2: the completed origin no longer needs reminders.
-        await NotificationService.instance.cancelForRecord(id);
+        await _cancelRemindersFor(id);
       } else {
         await (_db.update(_r)..where((r) => r.id.equals(id))).write(
           RecordsCompanion(completedAt: const Value(null), updatedAt: Value(now)),
@@ -343,9 +352,10 @@ class RecordRepository {
         ));
         // F3: on undo-completion, reclaim the next instance if it is still a
         // pure clone. Purity is content equality with the origin template
-        // (title/body/list/span/rrule + all checkitems, instance uncompleted
-        // and undeleted). Timestamp equality is NOT used: same-millisecond
-        // create/edit indistinguishable (bitten in a real test).
+        // (title/body/list/rrule/pinned/allDay/span/reminderOffsets; instance
+        // uncompleted and undeleted). Checkitems are not compared yet (known
+        // reclaim-policy gap, backlog). Timestamp equality is NOT used:
+        // same-millisecond create/edit indistinguishable (bitten in a test).
         final nextId = row.nextInstanceId;
         if (nextId != null) {
           final next = await (_db.select(_r)..where((r) => r.id.equals(nextId)))
@@ -360,6 +370,9 @@ class RecordRepository {
             await (_db.update(_c)..where((c) => c.recordId.equals(nextId))).write(
               CheckitemsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
             );
+            // L2: a reclaimed instance must not fire its already-scheduled
+            // reminders; otherwise undo-completion leaves a ghost alert.
+            await _cancelRemindersFor(nextId);
           }
           // Clear the lineage pointer (the chain is void after undo).
           await (_db.update(_r)..where((r) => r.id.equals(id))).write(
@@ -372,8 +385,8 @@ class RecordRepository {
 
   /// F3 pure-clone test: the instance still matches the origin template.
   /// Pure clones are safe to reclaim on undo-completion; any user edit keeps
-  /// the instance. F2b: allDay is compared. F1c: spans compare as full
-  /// timestamps (cross-day distinguishable).
+  /// the instance. Compares title/body/list/rrule/pinned/allDay/span and
+  /// reminderOffsets. Checkitems are not compared yet (known gap, backlog).
   bool _isPureClone(Record origin, Record next) {
     bool sameInstant(DateTime? a, DateTime? b) =>
         (a == null && b == null) ||
@@ -384,6 +397,7 @@ class RecordRepository {
         next.rrule == origin.rrule &&
         next.pinned == origin.pinned &&
         next.allDay == origin.allDay &&
+        next.reminderOffsets == origin.reminderOffsets &&
         sameInstant(origin.startAt, next.startAt) &&
         sameInstant(origin.endAt, next.endAt);
   }
@@ -468,7 +482,7 @@ class RecordRepository {
       );
     });
     // L2: deleted records must not fire reminders.
-    await NotificationService.instance.cancelForRecord(id);
+    await _cancelRemindersFor(id);
   }
 
   /// L2: (re)schedule reminders for one record from its current fields.
@@ -482,17 +496,27 @@ class RecordRepository {
         offsets: draft.offsets,
       );
       if (instants.isEmpty) {
-        await NotificationService.instance.cancelForRecord(draft.id);
+        await _reminders.cancelForRecord(draft.id);
         return;
       }
       final timeLabel = _dueTimeLabel(draft.dueAt, draft.allDay);
-      await NotificationService.instance.scheduleForRecord(
+      await _reminders.scheduleForRecord(
         recordId: draft.id,
         title: draft.title,
         timeLabel: timeLabel,
         offsets: draft.offsets,
         instants: instants,
       );
+    } catch (_) {
+      // Never let notification plumbing break a data write.
+    }
+  }
+
+  /// L2: cancel pending reminders without letting plugin failures abort the
+  /// surrounding data write (same invariant as [_rescheduleReminders]).
+  Future<void> _cancelRemindersFor(String recordId) async {
+    try {
+      await _reminders.cancelForRecord(recordId);
     } catch (_) {
       // Never let notification plumbing break a data write.
     }

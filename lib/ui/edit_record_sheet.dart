@@ -9,6 +9,10 @@ import '../data/rrule.dart';
 import '../providers.dart';
 import 'manage_lists_sheet.dart';
 
+/// Sentinel returned by the repeat picker when the user explicitly taps
+/// "no repeat". A null result still means "dismissed" (keep the current rule).
+const Object _clearRrule = Object();
+
 /// Bottom sheet for creating / editing a record.
 /// existing == null means create mode.
 Future<void> showEditRecordSheet(
@@ -189,7 +193,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
         initialAllDay: initialAllDay,
       ),
     );
-    if (resolved == null || !mounted) return false; // 取消时刻步骤：日期已更新
+    if (resolved == null || !mounted) return false; // Time step cancelled: the date was already applied.
     onTimeResolved(resolved);
     return true;
   }
@@ -232,7 +236,7 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
           ? null
           : TimeOfDay(hour: _startAt!.hour, minute: _startAt!.minute),
     );
-    if (startResolved == null || !mounted) return; // 取消 = 不改动
+    if (startResolved == null || !mounted) return; // Cancelled = leave unchanged.
     final (startTime, startAllDay) = startResolved;
 
     // ---- end side (date defaults to start date; editable -> cross-day) ----
@@ -320,37 +324,45 @@ class _EditRecordSheetState extends ConsumerState<_EditRecordSheet> {
   }
 
   Future<void> _pickRrule() async {
-    final choice = await showModalBottomSheet<RRule?>(
+    final choice = await showModalBottomSheet<Object?>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('重复', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.block_rounded),
-              title: const Text('不重复'),
-              onTap: () => Navigator.pop(ctx, null),
-            ),
-            for (final r in RRule.presets)
-              ListTile(
-                leading: const Icon(Icons.repeat_rounded),
-                title: Text(r.label),
-                onTap: () => Navigator.pop(ctx, r),
+        // The preset list is long enough to exceed a phone-sized sheet; keep
+        // it scrollable so the later rules (e.g. every N days) stay reachable.
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child:
+                    Text('重复', style: TextStyle(fontWeight: FontWeight.w600)),
               ),
-            const SizedBox(height: 8),
-          ],
+              ListTile(
+                leading: const Icon(Icons.block_rounded),
+                title: const Text('不重复'),
+                onTap: () => Navigator.pop(ctx, _clearRrule),
+              ),
+              for (final r in RRule.presets)
+                ListTile(
+                  leading: const Icon(Icons.repeat_rounded),
+                  title: Text(r.label),
+                  onTap: () => Navigator.pop(ctx, r),
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
-    if (choice != null || mounted) {
-      // Also reached when the user tapped "no repeat" (choice == null);
-      // dismissing the sheet by tap-outside leaves the rule unchanged.
-      if (choice != null || _rrule != null) setState(() => _rrule = choice);
-    }
+    if (!mounted || choice == null) return; // dismissed: keep the current rule
+    setState(() {
+      if (choice == _clearRrule) {
+        _rrule = null;
+      } else if (choice is RRule) {
+        _rrule = choice;
+      }
+    });
   }
 
   @override

@@ -2,6 +2,21 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+/// Minimal scheduling seam used by [RecordRepository]. The repository only
+/// needs to (re)schedule a record's instants and cancel them; exact/inexact
+/// alarm policy and plugin details stay inside [NotificationService].
+abstract interface class ReminderScheduler {
+  Future<ScheduleResult> scheduleForRecord({
+    required String recordId,
+    required String title,
+    required String? timeLabel,
+    required List<int> offsets,
+    required List<DateTime> instants,
+  });
+
+  Future<void> cancelForRecord(String recordId);
+}
+
 /// Local notification scheduling for DDL reminders (v0.1.3 L2).
 ///
 /// Scheduling choice — exact alarms (zonedSchedule with
@@ -13,7 +28,7 @@ import 'package:timezone/timezone.dart' as tz;
 ///   fire precisely even when the app is killed.
 /// * Fallback chain when permissions are denied: schedule inexact, surface an
 ///   in-app banner, and offer a jump to system settings.
-class NotificationService {
+class NotificationService implements ReminderScheduler {
   NotificationService._();
 
   static final NotificationService instance = NotificationService._();
@@ -72,6 +87,7 @@ class NotificationService {
   /// (Re)schedule all reminder instants for a record.
   /// Ids are derived from the record id hash + offset so re-scheduling
   /// replaces previous alarms instead of stacking. No-op before [init].
+  @override
   Future<ScheduleResult> scheduleForRecord({
     required String recordId,
     required String title,
@@ -138,6 +154,7 @@ class NotificationService {
 
   /// Cancel all pending notifications for a record across all known offsets.
   /// No-op before [init] (nothing can be pending).
+  @override
   Future<void> cancelForRecord(
     String recordId, {
     List<int> offsets = kAllReminderOffsets,

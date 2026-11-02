@@ -3,6 +3,45 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lifeos/data/database.dart';
 import 'package:lifeos/data/repository.dart';
 import 'package:lifeos/data/rrule.dart';
+import 'package:lifeos/services/notification_service.dart';
+
+/// Test double for the reminder scheduling seam. It records what the
+/// repository asked for so recurrence/reminder invariants can be asserted
+/// without touching the Android notification plugin.
+class _FakeReminderScheduler implements ReminderScheduler {
+  final List<({String recordId, List<int> offsets, List<DateTime> instants})>
+      scheduled = [];
+  final List<String> cancelled = [];
+
+  @override
+  Future<ScheduleResult> scheduleForRecord({
+    required String recordId,
+    required String title,
+    required String? timeLabel,
+    required List<int> offsets,
+    required List<DateTime> instants,
+  }) async {
+    scheduled.add((
+      recordId: recordId,
+      offsets: List<int>.unmodifiable(offsets),
+      instants: List<DateTime>.unmodifiable(instants),
+    ));
+    return ScheduleResult(exact: false, scheduled: instants.length);
+  }
+
+  @override
+  Future<void> cancelForRecord(String recordId) async {
+    cancelled.add(recordId);
+  }
+}
+
+Future<Record> _recordById(AppDatabase db, String id) async =>
+    (db.select(db.records)..where((r) => r.id.equals(id))).getSingle();
+
+Future<Record> _nextInstanceOf(AppDatabase db, String originId) async {
+  final origin = await _recordById(db, originId);
+  return _recordById(db, origin.nextInstanceId!);
+}
 
 void main() {
   late AppDatabase db;
@@ -411,6 +450,157 @@ void main() {
       expect(all.every((r) => r.deletedAt != null), isTrue);
       final inbox = await repo.watchRecords(kind: ViewKind.inbox).first;
       expect(inbox, isEmpty);
+    });
+  });
+
+  group('L2 循环提醒：下一实例持久化 reminderOffsets', () {
+    test('完成循环任务：下一实例持久化 reminderOffsets', () async {
+      final fake = _FakeReminderScheduler();
+      final r = RecordRepository(db, reminders: fake);
+      final due = DateTime.now().add(const Duration(days: 2));
+      final id = await r.createRecord(
+        title: '循环提醒',
+        dueAt: due,
+        allDay: false,
+        rrule: const RRule.daily(),
+        reminderOffsets: const [15, 60],
+      );
+
+      await r.setCompleted(id, true);
+
+      final next = await _nextInstanceOf(db, id);
+      expect(next.reminderOffsets, '15,60',
+          reason: '下一实例必须继承提醒提前量（D1）');
+      final calls = fake.scheduled.where((c) => c.recordId == next.id).toList();
+      expect(calls, isNotEmpty, reason: '下一实例的提醒应被排程');
+      expect(calls.last.offsets, [15, 60]);
+    });
+
+    test('编辑下一实例：仍按原 offsets 重排，不被空列表取消', () async {
+      final fake = _FakeReminderScheduler();
+      final r = RecordRepository(db, reminders: fake);
+      final due = DateTime.now().add(const Duration(days: 2));
+      final id = await r.createRecord(
+        title: '循环提醒',
+        dueAt: due,
+        allDay: false,
+        rrule: const RRule.daily(),
+        reminderOffsets: const [15, 60],
+      );
+      await r.setCompleted(id, true);
+      final next = await _nextInstanceOf(db, id);
+      final callsBefore =
+          fake.scheduled.where((c) => c.recordId == next.id).length;
+
+      await r.updateRecord(next.id, title: '改过标题');
+
+      final callsAfter =
+          fake.scheduled.where((c) => c.recordId == next.id).toList();
+      expect(callsAfter.length, greaterThan(callsBefore),
+          reason: '编辑后应重新排程，而不是取消');
+      expect(callsAfter.last.offsets, [15, 60]);
+      expect(fake.cancelled, isNot(contains(next.id)),
+          reason: '仍有提醒的下一实例不应被取消');
+      final refreshed = await _recordById(db, next.id);
+      expect(refreshed.reminderOffsets, '15,60');
+    });
+
+    test('连续两代：下下次实例仍携带 offsets', () async {
+      final fake = _FakeReminderScheduler();
+      final r = RecordRepository(db, reminders: fake);
+      final due = DateTime.now().add(const Duration(days: 2));
+      final id = await r.createRecord(
+        title: '循环提醒',
+        dueAt: due,
+        allDay: false,
+        rrule: const RRule.daily(),
+        reminderOffsets: const [15, 60],
+      );
+      await r.setCompleted(id, true);
+      final next1 = await _nextInstanceOf(db, id);
+
+      await r.setCompleted(next1.id, true);
+
+      final next2 = await _nextInstanceOf(db, next1.id);
+      expect(next2.reminderOffsets, '15,60',
+          reason: '第二代实例仍须继承 offsets（D1 断代回归）');
+      final calls = fake.scheduled.where((c) => c.recordId == next2.id);
+      expect(calls, isNotEmpty);
+      expect(calls.last.offsets, [15, 60]);
+    });
+  });
+
+  group('L2 撤销完成：回收实例取消通知', () {
+    test('撤销完成回收纯克隆实例：取消该实例的通知', () async {
+      final fake = _FakeReminderScheduler();
+      final r = RecordRepository(db, reminders: fake);
+      final due = DateTime.now().add(const Duration(days: 2));
+      final id = await r.createRecord(
+        title: '循环提醒',
+        dueAt: due,
+        allDay: false,
+        rrule: const RRule.daily(),
+        reminderOffsets: const [15, 60],
+      );
+      await r.setCompleted(id, true);
+      final next = await _nextInstanceOf(db, id);
+
+      await r.setCompleted(id, false);
+
+      final reclaimed = await _recordById(db, next.id);
+      expect(reclaimed.deletedAt, isNotNull, reason: '纯克隆实例应被回收');
+      expect(fake.cancelled, contains(next.id),
+          reason: '回收后必须取消其已排提醒（D3 幽灵提醒回归）');
+    });
+
+    test('编辑过的下一实例保留：不得取消其通知', () async {
+      final fake = _FakeReminderScheduler();
+      final r = RecordRepository(db, reminders: fake);
+      final due = DateTime.now().add(const Duration(days: 2));
+      final id = await r.createRecord(
+        title: '循环提醒',
+        dueAt: due,
+        allDay: false,
+        rrule: const RRule.daily(),
+        reminderOffsets: const [15, 60],
+      );
+      await r.setCompleted(id, true);
+      final next = await _nextInstanceOf(db, id);
+      await r.updateRecord(next.id, title: '改过标题');
+
+      await r.setCompleted(id, false);
+
+      final kept = await _recordById(db, next.id);
+      expect(kept.deletedAt, isNull, reason: '编辑过的实例有真实工作，不回收');
+      expect(fake.cancelled, isNot(contains(next.id)),
+          reason: '保留的实例不得被取消通知');
+    });
+
+    test('只改下一实例提醒：视为有编辑，保留且不取消', () async {
+      final fake = _FakeReminderScheduler();
+      final r = RecordRepository(db, reminders: fake);
+      final due = DateTime.now().add(const Duration(days: 2));
+      final id = await r.createRecord(
+        title: '循环提醒',
+        dueAt: due,
+        allDay: false,
+        rrule: const RRule.daily(),
+        reminderOffsets: const [15, 60],
+      );
+      await r.setCompleted(id, true);
+      final next = await _nextInstanceOf(db, id);
+
+      await r.updateRecord(next.id, reminderOffsetsParam: const [30]);
+      final edited = await _recordById(db, next.id);
+      expect(edited.reminderOffsets, '30');
+
+      await r.setCompleted(id, false);
+
+      final kept = await _recordById(db, next.id);
+      expect(kept.deletedAt, isNull,
+          reason: '只改提醒也是用户编辑，不得按纯克隆回收');
+      expect(fake.cancelled, isNot(contains(next.id)),
+          reason: '保留的实例不得被取消通知');
     });
   });
 }

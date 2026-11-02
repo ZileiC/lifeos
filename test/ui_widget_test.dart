@@ -4,17 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lifeos/data/database.dart';
 import 'package:lifeos/data/repository.dart';
+import 'package:lifeos/data/rrule.dart';
 import 'package:lifeos/providers.dart';
 import 'package:lifeos/ui/home_screen.dart';
 
-/// G1/widget 回归测试（v0.1.2b）：
-/// v0.1.2 事故 = 点 + 新建按钮 → 弹层 build 抛 `_r` null! → release 灰屏。
-/// 上轮 F3 死功能 = UI 交互层无测试覆盖。本文件堵住这两个流程缺口。
+/// G1/widget regression tests (v0.1.2b):
+/// v0.1.2 incident = tapping + (new record) -> sheet build threw `_r` null! -> release grey screen.
+/// The previous F3 dead feature = no coverage in the UI interaction layer. This file closes both gaps.
 ///
-/// 测试环境注意：
-/// - drift 的 watch 流取消时会调度 zero-duration Timer（markAsClosed），
-///   摘树后必须推进 fake clock 让它执行，否则 pending-timer 断言失败。
-/// - pump 前用 runAsync 预热数据库首查询（真实异步）。
+/// Test environment notes:
+/// - Drift schedules a zero-duration Timer when a watch stream is cancelled (markAsClosed);
+///   advance the fake clock after unmounting or the pending-timer assertion fails.
+/// - Warm the database with runAsync before pumping (the first query is truly async).
 AppDatabase createTestDb() => AppDatabase.forTesting(NativeDatabase.memory());
 
 void main() {
@@ -41,7 +42,7 @@ void main() {
     await tester.pump();
   }
 
-  /// 收尾：摘树 + 推进 fake clock，清掉 drift 流取消的清理 Timer
+  /// Teardown: unmount + advance the fake clock to flush drift's stream-cancel timer.
   Future<void> unwind(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -84,14 +85,14 @@ void main() {
       });
       await pumpHome(tester);
 
-      // 点卡片内容区（标题文本）打开编辑
+      // Tap the card content (title text) to open the editor.
       await tester.tap(find.text('已存在的记录'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.text('保存'), findsOneWidget, reason: '编辑模式显示「保存」');
       expect(find.text('删除这条记录'), findsOneWidget);
-      // 标题输入框已预填
+      // The title field is prefilled.
       final field = tester.widget<TextField>(
           find.widgetWithText(TextField, '已存在的记录').first);
       expect(field.controller!.text, '已存在的记录');
@@ -110,7 +111,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 卡片预览 + 弹层清单各渲染一份 → 至少各 1 处
+      // Card preview + sheet list each render once -> at least one of each.
       expect(find.text('第一项'), findsWidgets);
       expect(find.text('第二项'), findsWidgets);
       expect(find.text('+ 添加勾选项'), findsOneWidget);
@@ -119,25 +120,26 @@ void main() {
   });
 
   group('F2b 时刻选择步骤（_TimeStepSheet 行为）', () {
-    // _TimeStepSheet 是私有类，通过编辑弹层的「到期日」chip 两步流程间接驱动：
-    // 点「到期日」→ DatePicker（测试环境直接选 today）→ 时刻步骤弹层。
-    // DatePicker 在 widget 测试中可交互（日历格子是按钮），这里用回值验证。
+    // _TimeStepSheet is private; drive it indirectly through the edit sheet's
+    // due-date chip two-step flow: tap the chip -> DatePicker (pick today in
+    // tests) -> time-step sheet. DatePicker is interactive in widget tests
+    // (calendar cells are buttons); verify via the returned value.
     testWidgets('时刻步骤：全天任务 / 指定时刻两项可见且可回值', (tester) async {
       await pumpHome(tester);
       await tester.tap(find.byIcon(Icons.add_rounded));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 到期日 chip → DatePicker
+      // Due-date chip -> DatePicker.
       await tester.tap(find.text('到期日'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      // 选今天的格子（day picker 中当前日期带 today 标记）
+      // Pick today's cell (the current date carries the today marker).
       final todaySel = find.byWidgetPredicate((w) =>
           w is InkWell && w.onTap != null);
       expect(todaySel, findsWidgets, reason: 'DatePicker 日历格可点');
 
-      // 在 DatePicker 里点 OK（保存默认选中的今天）
+      // Tap OK in DatePicker (keeps the default-selected today).
       final ok = find.text('OK');
       if (ok.evaluate().isNotEmpty) {
         await tester.tap(ok.first);
@@ -147,12 +149,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 时刻步骤弹层出现
+      // The time-step sheet appears.
       expect(find.text('全天任务'), findsOneWidget);
       expect(find.text('指定时刻'), findsOneWidget);
       expect(find.text('不指定具体时刻'), findsOneWidget);
 
-      // 点「全天任务」→ 回值 (null, true)，chip 文案更新为「全天」
+      // Tap "all-day" -> returns (null, true); the chip label becomes all-day.
       await tester.tap(find.text('全天任务'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
@@ -164,7 +166,7 @@ void main() {
   });
 
   group('F1c 区间两步流程（两次完整「日期→时刻」）', () {
-    /// 在打开的 DatePicker 里确认默认（今天）
+    /// Confirm the default (today) in the open DatePicker.
     Future<void> confirmDatePicker(WidgetTester tester) async {
       final ok = find.text('OK');
       if (ok.evaluate().isNotEmpty) {
@@ -184,7 +186,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 第 1 步：开始日期
+      // Step 1: start date.
       await tester.tap(find.text('时间段'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
@@ -192,13 +194,13 @@ void main() {
           reason: 'F1c：区间开始必须有日期步骤（H1 修复点）');
       await confirmDatePicker(tester);
 
-      // 时刻步骤
+      // Time step.
       expect(find.text('全天任务'), findsOneWidget);
       expect(find.text('指定时刻'), findsOneWidget);
       await tester.tap(find.text('指定时刻'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      // TimePicker 出现，确认默认时刻
+      // TimePicker appears; confirm the default time.
       final timeOk = find.text('OK');
       if (timeOk.evaluate().isNotEmpty) {
         await tester.tap(timeOk.first);
@@ -208,12 +210,12 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 第 2 步：结束日期（默认 = 开始日期）
+      // Step 2: end date (defaults to the start date).
       expect(find.text('选择结束日期'), findsOneWidget,
           reason: 'F1c：区间结束也有日期步骤（默认开始日期，可改 → 跨天）');
       await confirmDatePicker(tester);
 
-      // 结束时刻步骤
+      // End time step.
       expect(find.text('全天任务'), findsOneWidget);
       await tester.tap(find.text('指定时刻'));
       await tester.pump();
@@ -227,7 +229,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 保存回显：chip 文案变为带日期轴的区间（M月d日 HH:mm–HH:mm）
+      // Saved echo: chip label becomes a date-axis span (M/d HH:mm-HH:mm).
       expect(find.textContaining(RegExp(r'\d{1,2}月\d{1,2}日 \d{2}:\d{2}–\d{2}:\d{2}')),
           findsOneWidget,
           reason: '区间设置完成后 chip 回显带日期的时间段');
@@ -245,12 +247,12 @@ void main() {
       await tester.tap(find.text('时间段'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      await confirmDatePicker(tester); // 开始日期
-      await tester.tap(find.text('全天任务')); // 开始全天
+      await confirmDatePicker(tester); // Start date.
+      await tester.tap(find.text('全天任务')); // Start is all-day.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 结束日期步骤：点取消（本地化未知 → CANCEL / Cancel / 取消 逐个兜底）
+      // End-date step: tap cancel (try the known English/Chinese labels).
       expect(find.text('选择结束日期'), findsOneWidget);
       var tappedCancel = false;
       for (final label in ['CANCEL', 'Cancel', '取消']) {
@@ -280,14 +282,14 @@ void main() {
       });
       await pumpHome(tester);
 
-      // 点圆点（勾选按钮区域）：用 TapOptions 以标题为锚点偏移到圆点位置
+      // Tap the done dot (checkbox area): offset from the title anchor instead of finding an icon.
       final cardTop = tester.getTopLeft(find.text('圆点测试'));
       final dotLocation = Offset(cardTop.dx - 24, cardTop.dy + 12);
       await tester.tapAt(dotLocation);
       await tester.pump();
       await tester.pump();
 
-      // 完成态生效：标题划线（done 样式），但编辑弹层没有打开
+      // Completed style applies (title strikethrough) but the editor never opens.
       expect(find.text('保存'), findsNothing, reason: '点圆点绝不打开详情');
       await unwind(tester);
     });
@@ -300,10 +302,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 未选日期时无提醒入口
+      // No reminder entry before a due date is picked.
       expect(find.text('提前提醒'), findsNothing);
 
-      // 选到期日（DatePicker 默认今天 → OK）
+      // Pick the due date (DatePicker defaults to today -> OK).
       await tester.tap(find.text('到期日'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
@@ -315,22 +317,23 @@ void main() {
       }
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      // 时刻步骤：选全天
+      // Time step: choose all-day.
       await tester.tap(find.text('全天任务'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
 
-      // 提醒 chip 出现，点开选择器
+      // The reminder chip appears; open the picker.
       await tester.tap(find.text('提前提醒'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.text('提前提醒（可多选）'), findsOneWidget);
       expect(find.text('准时'), findsOneWidget);
       expect(find.text('15分钟'), findsOneWidget);
-      // The last preset ("1天") may be below the fold in the test viewport.
+      // The last preset ("1 day") may be below the fold in the test viewport.
 
-      // 勾选两项并确定 → chip 文案回显（列表超视口时先滚动到目标；
-      // 页面背后还有一个 Scrollable，须限定弹层内那个）
+      // Check two presets and confirm -> the chip echoes them (scroll to the
+      // target when the list exceeds the viewport; the page behind also has a
+      // Scrollable, so scope the scrollable to the sheet).
       final sheetScrollable = find.descendant(
         of: find.ancestor(
           of: find.text('提前提醒（可多选）'),
@@ -359,6 +362,86 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       expect(find.textContaining('提前 15分钟 / 1小时'), findsOneWidget,
           reason: '多选后 chip 回显所选提前量');
+      await unwind(tester);
+    });
+  });
+
+  group('L2 重复规则：取消 / 清空区分', () {
+    Future<void> openRepeatPicker(WidgetTester tester) async {
+      await pumpHome(tester);
+      await tester.tap(find.text('循环记录'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final repeatChip = find.widgetWithText(ActionChip, '每天');
+      expect(repeatChip, findsOneWidget, reason: '编辑弹层应回显现有循环规则');
+      await tester.tap(repeatChip);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('不重复'), findsOneWidget, reason: '重复选择器已打开');
+    }
+
+    Future<Record?> savedRecord(
+      WidgetTester tester, {
+      required String recordId,
+    }) async {
+      return tester.runAsync<Record>(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        return (db.select(db.records)..where((r) => r.id.equals(recordId)))
+            .getSingle();
+      });
+    }
+
+    testWidgets('点空白关闭重复选择器：已有 rrule 不变', (tester) async {
+      late String id;
+      await tester.runAsync(() async {
+        id = await repo.createRecord(
+          title: '循环记录',
+          dueAt: DateTime.now().add(const Duration(days: 2)),
+          rrule: const RRule.daily(),
+        );
+      });
+      await openRepeatPicker(tester);
+
+      // Tap the barrier (above the modal sheet) to dismiss it.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.widgetWithText(ActionChip, '每天'), findsOneWidget,
+          reason: '点空白只关闭选择器，不得改动规则');
+
+      await tester.tap(find.text('保存'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final row = await savedRecord(tester, recordId: id);
+      expect(row!.rrule, 'daily', reason: '保存后循环规则保持不变');
+      await unwind(tester);
+    });
+
+    testWidgets('显式点「不重复」：清空 rrule', (tester) async {
+      late String id;
+      await tester.runAsync(() async {
+        id = await repo.createRecord(
+          title: '循环记录',
+          dueAt: DateTime.now().add(const Duration(days: 2)),
+          rrule: const RRule.daily(),
+        );
+      });
+      await openRepeatPicker(tester);
+
+      await tester.tap(find.text('不重复'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.widgetWithText(ActionChip, '不重复'), findsOneWidget,
+          reason: '显式取消重复后 chip 应回显「不重复」');
+
+      await tester.tap(find.text('保存'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      final row = await savedRecord(tester, recordId: id);
+      expect(row!.rrule, isNull, reason: '显式清空后 rrule 落库为 null');
       await unwind(tester);
     });
   });
