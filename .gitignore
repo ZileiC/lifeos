@@ -50,3 +50,9 @@ app.*.map.json
 # Project-local scratch / build logs (never commit)
 /*.log
 /build.log
+
+# RoundTable meeting runtime state (raw transcript; decisions live in docs/)
+/.roundtable/
+
+# Trellis per-session binding (local runtime)
+/.trellis/.runtime/
