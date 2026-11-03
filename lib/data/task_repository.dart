@@ -79,6 +79,10 @@ class TaskRepository {
         .toList());
   }
 
+  Stream<List<DaySlice>> watchAllSlices() {
+    return (_db.select(_s)..where((s) => s.deletedAt.isNull())).watch();
+  }
+
   // ---------- task writes ----------
 
   Future<String> createTask({

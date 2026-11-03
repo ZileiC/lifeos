@@ -1,48 +1,47 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/database.dart';
-import 'data/repository.dart';
+import 'data/task_repository.dart';
 
-/// Global database singleton.
+/// Global database singleton. Tests override this with an in-memory database.
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
   ref.onDispose(db.close);
   return db;
 });
 
-/// Repository.
-final repositoryProvider = Provider<RecordRepository>(
-    (ref) => RecordRepository(ref.watch(databaseProvider)));
-
-/// Current view kind.
-class ViewKindNotifier extends Notifier<ViewKind> {
-  @override
-  ViewKind build() => ViewKind.inbox;
-  void set(ViewKind kind) => state = kind;
-}
-
-final viewKindProvider =
-    NotifierProvider<ViewKindNotifier, ViewKind>(ViewKindNotifier.new);
-
-/// Currently selected list (null = all).
-class SelectedListNotifier extends Notifier<String?> {
-  @override
-  String? build() => null;
-  void set(String? listId) => state = listId;
-}
-
-final selectedListProvider =
-    NotifierProvider<SelectedListNotifier, String?>(SelectedListNotifier.new);
-
-/// Record stream for the current view kind.
-final recordsProvider = StreamProvider<List<RecordWithItems>>((ref) {
-  final repo = ref.watch(repositoryProvider);
-  final kind = ref.watch(viewKindProvider);
-  final listId = ref.watch(selectedListProvider);
-  return repo.watchRecords(kind: kind, listId: listId);
+final taskRepositoryProvider = Provider<TaskRepository>((ref) {
+  return TaskRepository(ref.watch(databaseProvider));
 });
 
-/// List stream.
-final listsProvider = StreamProvider<List<ListRecord>>((ref) {
-  return ref.watch(repositoryProvider).watchLists();
+final tasksProvider = StreamProvider<List<Record>>((ref) {
+  return ref.watch(taskRepositoryProvider).watchActiveTasks();
+});
+
+final allSlicesProvider = StreamProvider<List<DaySlice>>((ref) {
+  return ref.watch(taskRepositoryProvider).watchAllSlices();
+});
+
+class SelectedDayNotifier extends Notifier<DateTime> {
+  @override
+  DateTime build() => _today();
+
+  void set(DateTime date) => state = DateTime(date.year, date.month, date.day);
+
+  void shift(int days) => state = state.add(Duration(days: days));
+
+  void today() => state = _today();
+
+  static DateTime _today() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+}
+
+final selectedDayProvider =
+    NotifierProvider<SelectedDayNotifier, DateTime>(SelectedDayNotifier.new);
+
+final daySlicesProvider =
+    StreamProvider.family<List<DaySliceWithTask>, DateTime>((ref, day) {
+  return ref.watch(taskRepositoryProvider).watchSlicesForDay(day);
 });
