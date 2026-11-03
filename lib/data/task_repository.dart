@@ -83,6 +83,30 @@ class TaskRepository {
     return (_db.select(_s)..where((s) => s.deletedAt.isNull())).watch();
   }
 
+  /// Slices whose startAt falls in [from, to) — used to give the AI the next
+  /// 7 days of load. `to` is exclusive.
+  Stream<List<DaySliceWithTask>> watchSlicesBetween(
+    DateTime from,
+    DateTime to,
+  ) {
+    final start = _dateOnly(from);
+    final end = _dateOnly(to);
+    final query = _db.select(_s).join([
+      innerJoin(_r, _r.id.equalsExp(_s.taskId)),
+    ]);
+    query.where(_s.deletedAt.isNull() &
+        _r.deletedAt.isNull() &
+        _s.startAt.isBiggerOrEqualValue(start) &
+        _s.startAt.isSmallerThanValue(end));
+    query.orderBy([OrderingTerm(expression: _s.startAt)]);
+    return query.watch().map((rows) => rows
+        .map((row) => DaySliceWithTask(
+              slice: row.readTable(_s),
+              task: row.readTable(_r),
+            ))
+        .toList());
+  }
+
   // ---------- task writes ----------
 
   Future<String> createTask({
