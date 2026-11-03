@@ -2,6 +2,10 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lifeos/ai/ai_client.dart';
+import 'package:lifeos/ai/ai_provider.dart';
+import 'package:lifeos/ai/api_key_store.dart';
+import 'package:lifeos/ai/provider_store.dart';
 import 'package:lifeos/data/database.dart';
 import 'package:lifeos/data/recurrence.dart';
 import 'package:lifeos/data/task_repository.dart';
@@ -13,6 +17,31 @@ Widget _app(AppDatabase db) {
     overrides: [databaseProvider.overrideWithValue(db)],
     child: const LifeOSApp(),
   );
+}
+
+class _FakeAiClient implements AiClient {
+  @override
+  Future<AiCompletion> complete({
+    required AiProviderConfig provider,
+    required String apiKey,
+    required List<AiMessage> messages,
+    double temperature = 0.3,
+    int maxTokens = 1500,
+    String? reasoningEffort,
+  }) async {
+    return const AiCompletion(content: '{}');
+  }
+
+  @override
+  Future<List<AiModelInfo>> listModels({
+    required AiProviderConfig provider,
+    required String apiKey,
+  }) async {
+    return const [
+      AiModelInfo(id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash'),
+      AiModelInfo(id: 'deepseek-v4-pro', name: 'DeepSeek-V4-Pro'),
+    ];
+  }
 }
 
 /// Disposes the ProviderScope and drains Drift's zero-duration stream-store
@@ -229,6 +258,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('A'), findsOneWidget);
     expect(find.text('B'), findsOneWidget);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('AI settings saves provider key and tests connection',
+      (tester) async {
+    final keyStore = InMemoryAiKeyStore();
+    final providerStore = InMemoryAiProviderStore();
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        aiKeyStoreProvider.overrideWithValue(keyStore),
+        aiProviderStoreProvider.overrideWithValue(providerStore),
+        aiClientProvider.overrideWithValue(_FakeAiClient()),
+      ],
+      child: const LifeOSApp(),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('ai-settings')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('ai-key')), 'sk-test');
+    await tester.tap(find.byKey(const Key('ai-save')));
+    await tester.pumpAndSettle();
+
+    expect(await keyStore.read('deepseek'), 'sk-test');
+    expect(await providerStore.readActiveId(), 'deepseek');
+
+    await tester.tap(find.byKey(const Key('ai-test')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('连接成功'), findsOneWidget);
     await _disposeApp(tester);
   });
 }

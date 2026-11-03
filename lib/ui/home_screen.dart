@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../data/database.dart';
 import '../data/task_repository.dart';
 import '../providers.dart';
+import 'ai_settings_sheet.dart';
 import 'day_view.dart';
 import 'slice_editor_sheet.dart';
 import 'task_detail_sheet.dart';
@@ -212,6 +213,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: const Text('LifeOS'),
         actions: [
+          IconButton(
+            key: const Key('ai-settings'),
+            tooltip: 'AI 设置',
+            icon: const Icon(Icons.smart_toy_outlined),
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (_) => const AiSettingsSheet(),
+            ),
+          ),
           if (_selectionMode)
             TextButton(
               onPressed: _clearSelection,
