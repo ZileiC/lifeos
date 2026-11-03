@@ -64,4 +64,18 @@ void main() {
 
     expect(occurrences.length, RecurrenceSpec.maxDays);
   });
+
+  test('weekly occurrences cross year boundary', () {
+    final occurrences = RecurrencePlanner.occurrences(RecurrenceSpec(
+      weekdays: {4},
+      startMinutes: 9 * 60,
+      durationMinutes: 60,
+      fromDate: DateTime(2026, 12, 28),
+      toDate: DateTime(2027, 1, 7),
+    ));
+
+    expect(occurrences, hasLength(2));
+    expect(occurrences.first.startAt, DateTime(2026, 12, 31, 9));
+    expect(occurrences.last.startAt, DateTime(2027, 1, 7, 9));
+  });
 }

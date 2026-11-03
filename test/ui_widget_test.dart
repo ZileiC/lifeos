@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lifeos/data/database.dart';
+import 'package:lifeos/data/recurrence.dart';
 import 'package:lifeos/data/task_repository.dart';
 import 'package:lifeos/main.dart';
 import 'package:lifeos/providers.dart';
@@ -107,6 +108,71 @@ void main() {
     await tester.tap(find.text('A'));
     await tester.pumpAndSettle();
     expect(find.text('秘密备注'), findsOneWidget);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('create weekly-fixed task generates same-color slices',
+      (tester) async {
+    await tester.pumpWidget(_app(db));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('task-title')), '课');
+    await tester.tap(find.text('每周固定'));
+    await tester.pumpAndSettle();
+
+    final day = DateTime.now().weekday == 1 ? 3 : 1;
+    await tester.ensureVisible(find.byKey(Key('weekday-$day')));
+    await tester.tap(find.byKey(Key('weekday-$day')));
+    await tester.tap(find.byKey(const Key('task-save')));
+    await tester.pumpAndSettle();
+
+    final task = await db.select(db.records).getSingle();
+    final spec = RecurrenceSpec.tryParse(task.recurrence);
+    expect(spec, isNotNull);
+    expect(spec!.weekdays.contains(day), isTrue);
+    final slices = await db.select(db.daySlices).get();
+    expect(slices, isNotEmpty);
+    expect(slices.every((slice) => slice.taskId == task.id), isTrue);
+    expect(
+      slices.every((slice) =>
+          slice.taskId == task.id &&
+          task.color != null),
+      isTrue,
+    );
+    expect(find.textContaining('每周'), findsOneWidget);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('editing weekly template keeps existing slices', (tester) async {
+    final spec = RecurrenceSpec(
+      weekdays: {1},
+      startMinutes: 9 * 60,
+      durationMinutes: 60,
+      fromDate: DateTime(2026, 11, 2),
+      toDate: DateTime(2026, 11, 30),
+    );
+    final id = await repo.createTask(title: '课', recurrence: spec);
+    final before = await db.select(db.daySlices).get();
+    expect(before, hasLength(5));
+
+    await tester.pumpWidget(_app(db));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('课'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('detail-edit')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('task-title')), '新课');
+    await tester.tap(find.byKey(const Key('task-save')));
+    await tester.pumpAndSettle();
+
+    final after = await db.select(db.daySlices).get();
+    expect(after, hasLength(before.length));
+    final task = await (db.select(db.records)
+          ..where((r) => r.id.equals(id)))
+        .getSingle();
+    expect(task.title, '新课');
     await _disposeApp(tester);
   });
 
