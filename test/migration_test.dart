@@ -18,8 +18,8 @@ void main() {
 
   tearDown(() async => db.close());
 
-  test('schemaVersion = 4', () {
-    expect(db.schemaVersion, 4);
+  test('schemaVersion = 5', () {
+    expect(db.schemaVersion, 5);
   });
 
   test('v4 schema: records has v0.1.1 columns + allDay + reminderOffsets',
@@ -50,7 +50,7 @@ void main() {
     expect(row.allDay, isTrue);
   });
 
-  test('v1->v3: full chain upgrade from v1 adds all columns, data intact',
+  test('v1->v5: full chain upgrade from v1 adds all columns, data intact',
       () async {
     final raw = NativeDatabase.memory();
     final v1 = AppDatabase.forTesting(raw, migrationOverride: _NoopMigration());
@@ -79,8 +79,10 @@ void main() {
 
     // Real upgrade chain: from=1 up to the current version in steps.
     final m = v1.createMigrator();
-    await v1.migrateV1ToV2(m, 1, 3);
+    await v1.migrateV1ToV2(m, 1, 5);
     await v1.migrateV2ToV3(m, 1, 3);
+    await v1.migrateV3ToV4(m, 3, 5);
+    await v1.migrateV4ToV5(m, 4, 5);
 
     final cols = await v1.customSelect('PRAGMA table_info(records)').get();
     final names = cols.map((r) => r.data['name'] as String).toSet();
@@ -97,7 +99,7 @@ void main() {
     await v1.close();
   });
 
-  test('v2->v3: allDay added and backfilled via midnight sentinel',
+  test('v2->v5: allDay backfilled, then C′ columns added',
       () async {
     final raw = NativeDatabase.memory();
     final v2 = AppDatabase.forTesting(raw, migrationOverride: _NoopMigration());
@@ -139,6 +141,8 @@ void main() {
 
     final m = v2.createMigrator();
     await v2.migrateV2ToV3(m, 2, 3);
+    await v2.migrateV3ToV4(m, 3, 5);
+    await v2.migrateV4ToV5(m, 4, 5);
 
     // all_day exists in the physical schema.
     final cols = await v2.customSelect('PRAGMA table_info(records)').get();
@@ -155,7 +159,7 @@ void main() {
     await v2.close();
   });
 
-  test('v3->v4: reminderOffsets column added, existing rows null', () async {
+  test('v3->v5: reminderOffsets preserved, then C′ columns added', () async {
     final raw = NativeDatabase.memory();
     final v3 = AppDatabase.forTesting(raw, migrationOverride: _NoopMigration());
 
@@ -186,6 +190,7 @@ void main() {
 
     final m = v3.createMigrator();
     await v3.migrateV3ToV4(m, 3, 4);
+    await v3.migrateV4ToV5(m, 4, 5);
 
     final cols = await v3.customSelect('PRAGMA table_info(records)').get();
     final names = cols.map((r) => r.data['name'] as String).toSet();
@@ -196,5 +201,91 @@ void main() {
     expect(rows.first.reminderOffsets, isNull,
         reason: 'pre-v4 rows have no reminders');
     await v3.close();
+  });
+
+  test('v4->v5: task fields + day_slices; active spans migrate, completed hidden',
+      () async {
+    final raw = NativeDatabase.memory();
+    final v4 = AppDatabase.forTesting(raw, migrationOverride: _NoopMigration());
+
+    await v4.customStatement('''
+      CREATE TABLE records (
+        id TEXT NOT NULL PRIMARY KEY,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL DEFAULT '',
+        list_id TEXT NULL,
+        pinned INTEGER NOT NULL DEFAULT 0,
+        all_day INTEGER NOT NULL DEFAULT 1,
+        due_at INTEGER NULL,
+        start_at INTEGER NULL,
+        end_at INTEGER NULL,
+        rrule TEXT NULL,
+        next_instance_id TEXT NULL,
+        reminder_offsets TEXT NULL,
+        completed_at INTEGER NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        deleted_at INTEGER NULL
+      )
+    ''');
+
+    final start = DateTime(2026, 11, 3, 9);
+    final end = DateTime(2026, 11, 3, 10, 30);
+    final startSec = start.millisecondsSinceEpoch ~/ 1000;
+    final endSec = end.millisecondsSinceEpoch ~/ 1000;
+    final nowSec = DateTime(2026, 11, 1).millisecondsSinceEpoch ~/ 1000;
+
+    await v4.customStatement('''
+      INSERT INTO records
+        (id, title, body, pinned, created_at, updated_at, start_at, end_at)
+      VALUES
+        ('v4-active', 'active', '', 0, $nowSec, $nowSec, $startSec, $endSec)
+    ''');
+    await v4.customStatement('''
+      INSERT INTO records
+        (id, title, body, pinned, created_at, updated_at, start_at, end_at, completed_at)
+      VALUES
+        ('v4-completed', 'done', '', 0, $nowSec, $nowSec, $startSec, $endSec, $nowSec)
+    ''');
+    await v4.customStatement('''
+      INSERT INTO records
+        (id, title, body, pinned, created_at, updated_at)
+      VALUES
+        ('v4-nospan', 'no span', '', 0, $nowSec, $nowSec)
+    ''');
+
+    final m = v4.createMigrator();
+    await v4.migrateV4ToV5(m, 4, 5);
+
+    final cols = await v4.customSelect('PRAGMA table_info(records)').get();
+    final names = cols.map((r) => r.data['name'] as String).toSet();
+    expect(
+      names,
+      containsAll([
+        'urgency',
+        'importance',
+        'estimated_minutes',
+        'color',
+        'recurrence',
+      ]),
+    );
+
+    final slices = await v4.select(v4.daySlices).get();
+    expect(slices, hasLength(1), reason: 'only the active span migrates');
+    expect(slices.first.taskId, 'v4-active');
+    expect(slices.first.startAt, start);
+    expect(slices.first.endAt, end);
+
+    final active = await (v4.select(v4.records)
+          ..where((r) => r.id.equals('v4-active')))
+        .getSingle();
+    expect(active.estimatedMinutes, 90);
+    expect(active.urgency, isNull);
+
+    final completed = await (v4.select(v4.records)
+          ..where((r) => r.id.equals('v4-completed')))
+        .getSingle();
+    expect(completed.completedAt, isNotNull);
+    await v4.close();
   });
 }

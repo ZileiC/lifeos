@@ -589,6 +589,59 @@ class $RecordsTable extends Records with TableInfo<$RecordsTable, Record> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _urgencyMeta = const VerificationMeta(
+    'urgency',
+  );
+  @override
+  late final GeneratedColumn<int> urgency = GeneratedColumn<int>(
+    'urgency',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _importanceMeta = const VerificationMeta(
+    'importance',
+  );
+  @override
+  late final GeneratedColumn<int> importance = GeneratedColumn<int>(
+    'importance',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _estimatedMinutesMeta = const VerificationMeta(
+    'estimatedMinutes',
+  );
+  @override
+  late final GeneratedColumn<int> estimatedMinutes = GeneratedColumn<int>(
+    'estimated_minutes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<int> color = GeneratedColumn<int>(
+    'color',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _recurrenceMeta = const VerificationMeta(
+    'recurrence',
+  );
+  @override
+  late final GeneratedColumn<String> recurrence = GeneratedColumn<String>(
+    'recurrence',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _completedAtMeta = const VerificationMeta(
     'completedAt',
   );
@@ -647,6 +700,11 @@ class $RecordsTable extends Records with TableInfo<$RecordsTable, Record> {
     rrule,
     nextInstanceId,
     reminderOffsets,
+    urgency,
+    importance,
+    estimatedMinutes,
+    color,
+    recurrence,
     completedAt,
     createdAt,
     updatedAt,
@@ -743,6 +801,39 @@ class $RecordsTable extends Records with TableInfo<$RecordsTable, Record> {
         ),
       );
     }
+    if (data.containsKey('urgency')) {
+      context.handle(
+        _urgencyMeta,
+        urgency.isAcceptableOrUnknown(data['urgency']!, _urgencyMeta),
+      );
+    }
+    if (data.containsKey('importance')) {
+      context.handle(
+        _importanceMeta,
+        importance.isAcceptableOrUnknown(data['importance']!, _importanceMeta),
+      );
+    }
+    if (data.containsKey('estimated_minutes')) {
+      context.handle(
+        _estimatedMinutesMeta,
+        estimatedMinutes.isAcceptableOrUnknown(
+          data['estimated_minutes']!,
+          _estimatedMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('recurrence')) {
+      context.handle(
+        _recurrenceMeta,
+        recurrence.isAcceptableOrUnknown(data['recurrence']!, _recurrenceMeta),
+      );
+    }
     if (data.containsKey('completed_at')) {
       context.handle(
         _completedAtMeta,
@@ -831,6 +922,26 @@ class $RecordsTable extends Records with TableInfo<$RecordsTable, Record> {
         DriftSqlType.string,
         data['${effectivePrefix}reminder_offsets'],
       ),
+      urgency: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}urgency'],
+      ),
+      importance: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}importance'],
+      ),
+      estimatedMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}estimated_minutes'],
+      ),
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}color'],
+      ),
+      recurrence: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recurrence'],
+      ),
       completedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}completed_at'],
@@ -869,6 +980,11 @@ class Record extends DataClass implements Insertable<Record> {
   final String? rrule;
   final String? nextInstanceId;
   final String? reminderOffsets;
+  final int? urgency;
+  final int? importance;
+  final int? estimatedMinutes;
+  final int? color;
+  final String? recurrence;
   final DateTime? completedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -886,6 +1002,11 @@ class Record extends DataClass implements Insertable<Record> {
     this.rrule,
     this.nextInstanceId,
     this.reminderOffsets,
+    this.urgency,
+    this.importance,
+    this.estimatedMinutes,
+    this.color,
+    this.recurrence,
     this.completedAt,
     required this.createdAt,
     required this.updatedAt,
@@ -919,6 +1040,21 @@ class Record extends DataClass implements Insertable<Record> {
     }
     if (!nullToAbsent || reminderOffsets != null) {
       map['reminder_offsets'] = Variable<String>(reminderOffsets);
+    }
+    if (!nullToAbsent || urgency != null) {
+      map['urgency'] = Variable<int>(urgency);
+    }
+    if (!nullToAbsent || importance != null) {
+      map['importance'] = Variable<int>(importance);
+    }
+    if (!nullToAbsent || estimatedMinutes != null) {
+      map['estimated_minutes'] = Variable<int>(estimatedMinutes);
+    }
+    if (!nullToAbsent || color != null) {
+      map['color'] = Variable<int>(color);
+    }
+    if (!nullToAbsent || recurrence != null) {
+      map['recurrence'] = Variable<String>(recurrence);
     }
     if (!nullToAbsent || completedAt != null) {
       map['completed_at'] = Variable<DateTime>(completedAt);
@@ -959,6 +1095,21 @@ class Record extends DataClass implements Insertable<Record> {
       reminderOffsets: reminderOffsets == null && nullToAbsent
           ? const Value.absent()
           : Value(reminderOffsets),
+      urgency: urgency == null && nullToAbsent
+          ? const Value.absent()
+          : Value(urgency),
+      importance: importance == null && nullToAbsent
+          ? const Value.absent()
+          : Value(importance),
+      estimatedMinutes: estimatedMinutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(estimatedMinutes),
+      color: color == null && nullToAbsent
+          ? const Value.absent()
+          : Value(color),
+      recurrence: recurrence == null && nullToAbsent
+          ? const Value.absent()
+          : Value(recurrence),
       completedAt: completedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(completedAt),
@@ -988,6 +1139,11 @@ class Record extends DataClass implements Insertable<Record> {
       rrule: serializer.fromJson<String?>(json['rrule']),
       nextInstanceId: serializer.fromJson<String?>(json['nextInstanceId']),
       reminderOffsets: serializer.fromJson<String?>(json['reminderOffsets']),
+      urgency: serializer.fromJson<int?>(json['urgency']),
+      importance: serializer.fromJson<int?>(json['importance']),
+      estimatedMinutes: serializer.fromJson<int?>(json['estimatedMinutes']),
+      color: serializer.fromJson<int?>(json['color']),
+      recurrence: serializer.fromJson<String?>(json['recurrence']),
       completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -1010,6 +1166,11 @@ class Record extends DataClass implements Insertable<Record> {
       'rrule': serializer.toJson<String?>(rrule),
       'nextInstanceId': serializer.toJson<String?>(nextInstanceId),
       'reminderOffsets': serializer.toJson<String?>(reminderOffsets),
+      'urgency': serializer.toJson<int?>(urgency),
+      'importance': serializer.toJson<int?>(importance),
+      'estimatedMinutes': serializer.toJson<int?>(estimatedMinutes),
+      'color': serializer.toJson<int?>(color),
+      'recurrence': serializer.toJson<String?>(recurrence),
       'completedAt': serializer.toJson<DateTime?>(completedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -1030,6 +1191,11 @@ class Record extends DataClass implements Insertable<Record> {
     Value<String?> rrule = const Value.absent(),
     Value<String?> nextInstanceId = const Value.absent(),
     Value<String?> reminderOffsets = const Value.absent(),
+    Value<int?> urgency = const Value.absent(),
+    Value<int?> importance = const Value.absent(),
+    Value<int?> estimatedMinutes = const Value.absent(),
+    Value<int?> color = const Value.absent(),
+    Value<String?> recurrence = const Value.absent(),
     Value<DateTime?> completedAt = const Value.absent(),
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -1051,6 +1217,13 @@ class Record extends DataClass implements Insertable<Record> {
     reminderOffsets: reminderOffsets.present
         ? reminderOffsets.value
         : this.reminderOffsets,
+    urgency: urgency.present ? urgency.value : this.urgency,
+    importance: importance.present ? importance.value : this.importance,
+    estimatedMinutes: estimatedMinutes.present
+        ? estimatedMinutes.value
+        : this.estimatedMinutes,
+    color: color.present ? color.value : this.color,
+    recurrence: recurrence.present ? recurrence.value : this.recurrence,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -1074,6 +1247,17 @@ class Record extends DataClass implements Insertable<Record> {
       reminderOffsets: data.reminderOffsets.present
           ? data.reminderOffsets.value
           : this.reminderOffsets,
+      urgency: data.urgency.present ? data.urgency.value : this.urgency,
+      importance: data.importance.present
+          ? data.importance.value
+          : this.importance,
+      estimatedMinutes: data.estimatedMinutes.present
+          ? data.estimatedMinutes.value
+          : this.estimatedMinutes,
+      color: data.color.present ? data.color.value : this.color,
+      recurrence: data.recurrence.present
+          ? data.recurrence.value
+          : this.recurrence,
       completedAt: data.completedAt.present
           ? data.completedAt.value
           : this.completedAt,
@@ -1098,6 +1282,11 @@ class Record extends DataClass implements Insertable<Record> {
           ..write('rrule: $rrule, ')
           ..write('nextInstanceId: $nextInstanceId, ')
           ..write('reminderOffsets: $reminderOffsets, ')
+          ..write('urgency: $urgency, ')
+          ..write('importance: $importance, ')
+          ..write('estimatedMinutes: $estimatedMinutes, ')
+          ..write('color: $color, ')
+          ..write('recurrence: $recurrence, ')
           ..write('completedAt: $completedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -1107,7 +1296,7 @@ class Record extends DataClass implements Insertable<Record> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     title,
     body,
@@ -1120,11 +1309,16 @@ class Record extends DataClass implements Insertable<Record> {
     rrule,
     nextInstanceId,
     reminderOffsets,
+    urgency,
+    importance,
+    estimatedMinutes,
+    color,
+    recurrence,
     completedAt,
     createdAt,
     updatedAt,
     deletedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1141,6 +1335,11 @@ class Record extends DataClass implements Insertable<Record> {
           other.rrule == this.rrule &&
           other.nextInstanceId == this.nextInstanceId &&
           other.reminderOffsets == this.reminderOffsets &&
+          other.urgency == this.urgency &&
+          other.importance == this.importance &&
+          other.estimatedMinutes == this.estimatedMinutes &&
+          other.color == this.color &&
+          other.recurrence == this.recurrence &&
           other.completedAt == this.completedAt &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
@@ -1160,6 +1359,11 @@ class RecordsCompanion extends UpdateCompanion<Record> {
   final Value<String?> rrule;
   final Value<String?> nextInstanceId;
   final Value<String?> reminderOffsets;
+  final Value<int?> urgency;
+  final Value<int?> importance;
+  final Value<int?> estimatedMinutes;
+  final Value<int?> color;
+  final Value<String?> recurrence;
   final Value<DateTime?> completedAt;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -1178,6 +1382,11 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     this.rrule = const Value.absent(),
     this.nextInstanceId = const Value.absent(),
     this.reminderOffsets = const Value.absent(),
+    this.urgency = const Value.absent(),
+    this.importance = const Value.absent(),
+    this.estimatedMinutes = const Value.absent(),
+    this.color = const Value.absent(),
+    this.recurrence = const Value.absent(),
     this.completedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -1197,6 +1406,11 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     this.rrule = const Value.absent(),
     this.nextInstanceId = const Value.absent(),
     this.reminderOffsets = const Value.absent(),
+    this.urgency = const Value.absent(),
+    this.importance = const Value.absent(),
+    this.estimatedMinutes = const Value.absent(),
+    this.color = const Value.absent(),
+    this.recurrence = const Value.absent(),
     this.completedAt = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -1219,6 +1433,11 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     Expression<String>? rrule,
     Expression<String>? nextInstanceId,
     Expression<String>? reminderOffsets,
+    Expression<int>? urgency,
+    Expression<int>? importance,
+    Expression<int>? estimatedMinutes,
+    Expression<int>? color,
+    Expression<String>? recurrence,
     Expression<DateTime>? completedAt,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -1238,6 +1457,11 @@ class RecordsCompanion extends UpdateCompanion<Record> {
       if (rrule != null) 'rrule': rrule,
       if (nextInstanceId != null) 'next_instance_id': nextInstanceId,
       if (reminderOffsets != null) 'reminder_offsets': reminderOffsets,
+      if (urgency != null) 'urgency': urgency,
+      if (importance != null) 'importance': importance,
+      if (estimatedMinutes != null) 'estimated_minutes': estimatedMinutes,
+      if (color != null) 'color': color,
+      if (recurrence != null) 'recurrence': recurrence,
       if (completedAt != null) 'completed_at': completedAt,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -1259,6 +1483,11 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     Value<String?>? rrule,
     Value<String?>? nextInstanceId,
     Value<String?>? reminderOffsets,
+    Value<int?>? urgency,
+    Value<int?>? importance,
+    Value<int?>? estimatedMinutes,
+    Value<int?>? color,
+    Value<String?>? recurrence,
     Value<DateTime?>? completedAt,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -1278,6 +1507,11 @@ class RecordsCompanion extends UpdateCompanion<Record> {
       rrule: rrule ?? this.rrule,
       nextInstanceId: nextInstanceId ?? this.nextInstanceId,
       reminderOffsets: reminderOffsets ?? this.reminderOffsets,
+      urgency: urgency ?? this.urgency,
+      importance: importance ?? this.importance,
+      estimatedMinutes: estimatedMinutes ?? this.estimatedMinutes,
+      color: color ?? this.color,
+      recurrence: recurrence ?? this.recurrence,
       completedAt: completedAt ?? this.completedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -1325,6 +1559,21 @@ class RecordsCompanion extends UpdateCompanion<Record> {
     if (reminderOffsets.present) {
       map['reminder_offsets'] = Variable<String>(reminderOffsets.value);
     }
+    if (urgency.present) {
+      map['urgency'] = Variable<int>(urgency.value);
+    }
+    if (importance.present) {
+      map['importance'] = Variable<int>(importance.value);
+    }
+    if (estimatedMinutes.present) {
+      map['estimated_minutes'] = Variable<int>(estimatedMinutes.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<int>(color.value);
+    }
+    if (recurrence.present) {
+      map['recurrence'] = Variable<String>(recurrence.value);
+    }
     if (completedAt.present) {
       map['completed_at'] = Variable<DateTime>(completedAt.value);
     }
@@ -1358,6 +1607,11 @@ class RecordsCompanion extends UpdateCompanion<Record> {
           ..write('rrule: $rrule, ')
           ..write('nextInstanceId: $nextInstanceId, ')
           ..write('reminderOffsets: $reminderOffsets, ')
+          ..write('urgency: $urgency, ')
+          ..write('importance: $importance, ')
+          ..write('estimatedMinutes: $estimatedMinutes, ')
+          ..write('color: $color, ')
+          ..write('recurrence: $recurrence, ')
           ..write('completedAt: $completedAt, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -1882,12 +2136,467 @@ class CheckitemsCompanion extends UpdateCompanion<Checkitem> {
   }
 }
 
+class $DaySlicesTable extends DaySlices
+    with TableInfo<$DaySlicesTable, DaySlice> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DaySlicesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _taskIdMeta = const VerificationMeta('taskId');
+  @override
+  late final GeneratedColumn<String> taskId = GeneratedColumn<String>(
+    'task_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startAtMeta = const VerificationMeta(
+    'startAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startAt = GeneratedColumn<DateTime>(
+    'start_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endAtMeta = const VerificationMeta('endAt');
+  @override
+  late final GeneratedColumn<DateTime> endAt = GeneratedColumn<DateTime>(
+    'end_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    taskId,
+    startAt,
+    endAt,
+    createdAt,
+    updatedAt,
+    deletedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'day_slices';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DaySlice> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('task_id')) {
+      context.handle(
+        _taskIdMeta,
+        taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_taskIdMeta);
+    }
+    if (data.containsKey('start_at')) {
+      context.handle(
+        _startAtMeta,
+        startAt.isAcceptableOrUnknown(data['start_at']!, _startAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startAtMeta);
+    }
+    if (data.containsKey('end_at')) {
+      context.handle(
+        _endAtMeta,
+        endAt.isAcceptableOrUnknown(data['end_at']!, _endAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endAtMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DaySlice map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DaySlice(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      taskId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task_id'],
+      )!,
+      startAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}start_at'],
+      )!,
+      endAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}end_at'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+    );
+  }
+
+  @override
+  $DaySlicesTable createAlias(String alias) {
+    return $DaySlicesTable(attachedDatabase, alias);
+  }
+}
+
+class DaySlice extends DataClass implements Insertable<DaySlice> {
+  final String id;
+  final String taskId;
+  final DateTime startAt;
+  final DateTime endAt;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  const DaySlice({
+    required this.id,
+    required this.taskId,
+    required this.startAt,
+    required this.endAt,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['task_id'] = Variable<String>(taskId);
+    map['start_at'] = Variable<DateTime>(startAt);
+    map['end_at'] = Variable<DateTime>(endAt);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    return map;
+  }
+
+  DaySlicesCompanion toCompanion(bool nullToAbsent) {
+    return DaySlicesCompanion(
+      id: Value(id),
+      taskId: Value(taskId),
+      startAt: Value(startAt),
+      endAt: Value(endAt),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+    );
+  }
+
+  factory DaySlice.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DaySlice(
+      id: serializer.fromJson<String>(json['id']),
+      taskId: serializer.fromJson<String>(json['taskId']),
+      startAt: serializer.fromJson<DateTime>(json['startAt']),
+      endAt: serializer.fromJson<DateTime>(json['endAt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'taskId': serializer.toJson<String>(taskId),
+      'startAt': serializer.toJson<DateTime>(startAt),
+      'endAt': serializer.toJson<DateTime>(endAt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+    };
+  }
+
+  DaySlice copyWith({
+    String? id,
+    String? taskId,
+    DateTime? startAt,
+    DateTime? endAt,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+  }) => DaySlice(
+    id: id ?? this.id,
+    taskId: taskId ?? this.taskId,
+    startAt: startAt ?? this.startAt,
+    endAt: endAt ?? this.endAt,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+  );
+  DaySlice copyWithCompanion(DaySlicesCompanion data) {
+    return DaySlice(
+      id: data.id.present ? data.id.value : this.id,
+      taskId: data.taskId.present ? data.taskId.value : this.taskId,
+      startAt: data.startAt.present ? data.startAt.value : this.startAt,
+      endAt: data.endAt.present ? data.endAt.value : this.endAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DaySlice(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('startAt: $startAt, ')
+          ..write('endAt: $endAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, taskId, startAt, endAt, createdAt, updatedAt, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DaySlice &&
+          other.id == this.id &&
+          other.taskId == this.taskId &&
+          other.startAt == this.startAt &&
+          other.endAt == this.endAt &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt);
+}
+
+class DaySlicesCompanion extends UpdateCompanion<DaySlice> {
+  final Value<String> id;
+  final Value<String> taskId;
+  final Value<DateTime> startAt;
+  final Value<DateTime> endAt;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<int> rowid;
+  const DaySlicesCompanion({
+    this.id = const Value.absent(),
+    this.taskId = const Value.absent(),
+    this.startAt = const Value.absent(),
+    this.endAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DaySlicesCompanion.insert({
+    required String id,
+    required String taskId,
+    required DateTime startAt,
+    required DateTime endAt,
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       taskId = Value(taskId),
+       startAt = Value(startAt),
+       endAt = Value(endAt),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<DaySlice> custom({
+    Expression<String>? id,
+    Expression<String>? taskId,
+    Expression<DateTime>? startAt,
+    Expression<DateTime>? endAt,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (taskId != null) 'task_id': taskId,
+      if (startAt != null) 'start_at': startAt,
+      if (endAt != null) 'end_at': endAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DaySlicesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? taskId,
+    Value<DateTime>? startAt,
+    Value<DateTime>? endAt,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return DaySlicesCompanion(
+      id: id ?? this.id,
+      taskId: taskId ?? this.taskId,
+      startAt: startAt ?? this.startAt,
+      endAt: endAt ?? this.endAt,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (taskId.present) {
+      map['task_id'] = Variable<String>(taskId.value);
+    }
+    if (startAt.present) {
+      map['start_at'] = Variable<DateTime>(startAt.value);
+    }
+    if (endAt.present) {
+      map['end_at'] = Variable<DateTime>(endAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DaySlicesCompanion(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('startAt: $startAt, ')
+          ..write('endAt: $endAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $ListsTable lists = $ListsTable(this);
   late final $RecordsTable records = $RecordsTable(this);
   late final $CheckitemsTable checkitems = $CheckitemsTable(this);
+  late final $DaySlicesTable daySlices = $DaySlicesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1896,6 +2605,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     lists,
     records,
     checkitems,
+    daySlices,
   ];
 }
 
@@ -2150,6 +2860,11 @@ typedef $$RecordsTableCreateCompanionBuilder = RecordsCompanion Function({
   Value<String?> rrule,
   Value<String?> nextInstanceId,
   Value<String?> reminderOffsets,
+  Value<int?> urgency,
+  Value<int?> importance,
+  Value<int?> estimatedMinutes,
+  Value<int?> color,
+  Value<String?> recurrence,
   Value<DateTime?> completedAt,
   required DateTime createdAt,
   required DateTime updatedAt,
@@ -2169,6 +2884,11 @@ typedef $$RecordsTableUpdateCompanionBuilder = RecordsCompanion Function({
   Value<String?> rrule,
   Value<String?> nextInstanceId,
   Value<String?> reminderOffsets,
+  Value<int?> urgency,
+  Value<int?> importance,
+  Value<int?> estimatedMinutes,
+  Value<int?> color,
+  Value<String?> recurrence,
   Value<DateTime?> completedAt,
   Value<DateTime> createdAt,
   Value<DateTime> updatedAt,
@@ -2242,6 +2962,31 @@ class $$RecordsTableFilterComposer
 
   ColumnFilters<String> get reminderOffsets => $composableBuilder(
     column: $table.reminderOffsets,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get urgency => $composableBuilder(
+    column: $table.urgency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get importance => $composableBuilder(
+    column: $table.importance,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get estimatedMinutes => $composableBuilder(
+    column: $table.estimatedMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recurrence => $composableBuilder(
+    column: $table.recurrence,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2335,6 +3080,31 @@ class $$RecordsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get urgency => $composableBuilder(
+    column: $table.urgency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get importance => $composableBuilder(
+    column: $table.importance,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get estimatedMinutes => $composableBuilder(
+    column: $table.estimatedMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recurrence => $composableBuilder(
+    column: $table.recurrence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get completedAt => $composableBuilder(
     column: $table.completedAt,
     builder: (column) => ColumnOrderings(column),
@@ -2405,6 +3175,27 @@ class $$RecordsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get urgency =>
+      $composableBuilder(column: $table.urgency, builder: (column) => column);
+
+  GeneratedColumn<int> get importance => $composableBuilder(
+    column: $table.importance,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get estimatedMinutes => $composableBuilder(
+    column: $table.estimatedMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<String> get recurrence => $composableBuilder(
+    column: $table.recurrence,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get completedAt => $composableBuilder(
     column: $table.completedAt,
     builder: (column) => column,
@@ -2460,6 +3251,11 @@ class $$RecordsTableTableManager
                 Value<String?> rrule = const Value.absent(),
                 Value<String?> nextInstanceId = const Value.absent(),
                 Value<String?> reminderOffsets = const Value.absent(),
+                Value<int?> urgency = const Value.absent(),
+                Value<int?> importance = const Value.absent(),
+                Value<int?> estimatedMinutes = const Value.absent(),
+                Value<int?> color = const Value.absent(),
+                Value<String?> recurrence = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -2478,6 +3274,11 @@ class $$RecordsTableTableManager
                 rrule: rrule,
                 nextInstanceId: nextInstanceId,
                 reminderOffsets: reminderOffsets,
+                urgency: urgency,
+                importance: importance,
+                estimatedMinutes: estimatedMinutes,
+                color: color,
+                recurrence: recurrence,
                 completedAt: completedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -2498,6 +3299,11 @@ class $$RecordsTableTableManager
                 Value<String?> rrule = const Value.absent(),
                 Value<String?> nextInstanceId = const Value.absent(),
                 Value<String?> reminderOffsets = const Value.absent(),
+                Value<int?> urgency = const Value.absent(),
+                Value<int?> importance = const Value.absent(),
+                Value<int?> estimatedMinutes = const Value.absent(),
+                Value<int?> color = const Value.absent(),
+                Value<String?> recurrence = const Value.absent(),
                 Value<DateTime?> completedAt = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -2516,6 +3322,11 @@ class $$RecordsTableTableManager
                 rrule: rrule,
                 nextInstanceId: nextInstanceId,
                 reminderOffsets: reminderOffsets,
+                urgency: urgency,
+                importance: importance,
+                estimatedMinutes: estimatedMinutes,
+                color: color,
+                recurrence: recurrence,
                 completedAt: completedAt,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -2814,6 +3625,245 @@ typedef $$CheckitemsTableProcessedTableManager =
       Checkitem,
       PrefetchHooks Function()
     >;
+typedef $$DaySlicesTableCreateCompanionBuilder = DaySlicesCompanion Function({
+  required String id,
+  required String taskId,
+  required DateTime startAt,
+  required DateTime endAt,
+  required DateTime createdAt,
+  required DateTime updatedAt,
+  Value<DateTime?> deletedAt,
+  Value<int> rowid,
+});
+typedef $$DaySlicesTableUpdateCompanionBuilder = DaySlicesCompanion Function({
+  Value<String> id,
+  Value<String> taskId,
+  Value<DateTime> startAt,
+  Value<DateTime> endAt,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+  Value<DateTime?> deletedAt,
+  Value<int> rowid,
+});
+
+class $$DaySlicesTableFilterComposer
+    extends Composer<_$AppDatabase, $DaySlicesTable> {
+  $$DaySlicesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taskId => $composableBuilder(
+    column: $table.taskId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startAt => $composableBuilder(
+    column: $table.startAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get endAt => $composableBuilder(
+    column: $table.endAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DaySlicesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DaySlicesTable> {
+  $$DaySlicesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taskId => $composableBuilder(
+    column: $table.taskId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startAt => $composableBuilder(
+    column: $table.startAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get endAt => $composableBuilder(
+    column: $table.endAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DaySlicesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DaySlicesTable> {
+  $$DaySlicesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get taskId =>
+      $composableBuilder(column: $table.taskId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startAt =>
+      $composableBuilder(column: $table.startAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get endAt =>
+      $composableBuilder(column: $table.endAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$DaySlicesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DaySlicesTable,
+          DaySlice,
+          $$DaySlicesTableFilterComposer,
+          $$DaySlicesTableOrderingComposer,
+          $$DaySlicesTableAnnotationComposer,
+          $$DaySlicesTableCreateCompanionBuilder,
+          $$DaySlicesTableUpdateCompanionBuilder,
+          (DaySlice, BaseReferences<_$AppDatabase, $DaySlicesTable, DaySlice>),
+          DaySlice,
+          PrefetchHooks Function()
+        > {
+  $$DaySlicesTableTableManager(_$AppDatabase db, $DaySlicesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DaySlicesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DaySlicesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DaySlicesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> taskId = const Value.absent(),
+                Value<DateTime> startAt = const Value.absent(),
+                Value<DateTime> endAt = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DaySlicesCompanion(
+                id: id,
+                taskId: taskId,
+                startAt: startAt,
+                endAt: endAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String taskId,
+                required DateTime startAt,
+                required DateTime endAt,
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DaySlicesCompanion.insert(
+                id: id,
+                taskId: taskId,
+                startAt: startAt,
+                endAt: endAt,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DaySlicesTable, DaySlice>(table),
+                  BaseReferences<_$AppDatabase, $DaySlicesTable, DaySlice>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DaySlicesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DaySlicesTable,
+      DaySlice,
+      $$DaySlicesTableFilterComposer,
+      $$DaySlicesTableOrderingComposer,
+      $$DaySlicesTableAnnotationComposer,
+      $$DaySlicesTableCreateCompanionBuilder,
+      $$DaySlicesTableUpdateCompanionBuilder,
+      (DaySlice, BaseReferences<_$AppDatabase, $DaySlicesTable, DaySlice>),
+      DaySlice,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2824,4 +3874,6 @@ class $AppDatabaseManager {
       $$RecordsTableTableManager(_db, _db.records);
   $$CheckitemsTableTableManager get checkitems =>
       $$CheckitemsTableTableManager(_db, _db.checkitems);
+  $$DaySlicesTableTableManager get daySlices =>
+      $$DaySlicesTableTableManager(_db, _db.daySlices);
 }

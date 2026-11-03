@@ -39,9 +39,39 @@ class Records extends Table {
   TextColumn get nextInstanceId => text().nullable()();
   // v0.1.3 (L2): reminder lead times as a comma-separated list of minutes
   // (e.g. "0,15,60"); 0 = on-time. Empty/null = no reminder. Multi-select
-  // (rationale in WORKLOG 2026-09-08).
+  // (rationale in WORKLOG 2026-09-08). Legacy in C′ Stage 0.
   TextColumn get reminderOffsets => text().nullable()();
+
+  // C′ Stage 0 task fields.
+  // urgency/importance: direct 1-10 scores (10 = highest). Nullable so legacy
+  // rows survive the v4 -> v5 migration; the editor fills them going forward.
+  IntColumn get urgency => integer().nullable()();
+  IntColumn get importance => integer().nullable()();
+  // Normal task: total estimated effort. Weekly-fixed task: per-occurrence
+  // duration (kept in sync with recurrence.durationMinutes).
+  IntColumn get estimatedMinutes => integer().nullable()();
+  // Task-level persistent ARGB color. Null = derive from id via TaskColors.
+  IntColumn get color => integer().nullable()();
+  // JSON RecurrenceSpec. Null = normal task; non-null = weekly-fixed template.
+  TextColumn get recurrence => text().nullable()();
+
   DateTimeColumn get completedAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+  DateTimeColumn get deletedAt => dateTime().nullable()(); // tombstone
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// DaySlice: one planned time block on a specific day for one task.
+/// C′ Stage 0 has no completion state on the phone; a slice is a plan only.
+@DataClassName('DaySlice')
+class DaySlices extends Table {
+  TextColumn get id => text()(); // UUID
+  TextColumn get taskId => text()();
+  DateTimeColumn get startAt => dateTime()();
+  DateTimeColumn get endAt => dateTime()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
   DateTimeColumn get deletedAt => dateTime().nullable()(); // tombstone

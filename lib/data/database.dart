@@ -3,12 +3,13 @@ import 'dart:io';
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 import 'tables.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [Lists, Records, Checkitems])
+@DriftDatabase(tables: [Lists, Records, Checkitems, DaySlices])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : _migrationOverride = null, super(_openConnection());
 
@@ -26,7 +27,7 @@ class AppDatabase extends _$AppDatabase {
   final MigrationStrategy? _migrationOverride;
 
   @override
-  int get schemaVersion => 4; // v4: records.reminderOffsets (v0.1.3 L2)
+  int get schemaVersion => 5; // v5: C′ task fields + day_slices (2026-11-03)
 
   static QueryExecutor _openConnection() {
     return driftDatabase(
@@ -46,6 +47,7 @@ class AppDatabase extends _$AppDatabase {
           await migrateV1ToV2(m, from, to);
           await migrateV2ToV3(m, from, to);
           await migrateV3ToV4(m, from, to);
+          await migrateV4ToV5(m, from, to);
         },
       );
 
@@ -85,6 +87,56 @@ class AppDatabase extends _$AppDatabase {
   Future<void> migrateV3ToV4(Migrator m, int from, int to) async {
     if (from < 4) {
       await m.addColumn(records, records.reminderOffsets);
+    }
+  }
+
+  /// v4 -> v5 (C′ Stage 0): task fields + day_slices. Legacy spans that are
+  /// still active become manual day slices; completed rows stay as history.
+  /// All legacy columns/tables are preserved (no destructive migration).
+  Future<void> migrateV4ToV5(Migrator m, int from, int to) async {
+    if (from >= 5) return;
+    await m.addColumn(records, records.urgency);
+    await m.addColumn(records, records.importance);
+    await m.addColumn(records, records.estimatedMinutes);
+    await m.addColumn(records, records.color);
+    await m.addColumn(records, records.recurrence);
+    await m.createTable(daySlices);
+
+    // Backfill one manual slice per active record that has a complete span.
+    final rows = await customSelect(
+      'SELECT id, start_at, end_at FROM records '
+      'WHERE start_at IS NOT NULL AND end_at IS NOT NULL '
+      'AND completed_at IS NULL AND deleted_at IS NULL',
+    ).get();
+    final uuid = Uuid();
+    for (final row in rows) {
+      final taskId = row.read<String>('id');
+      final startSec = row.read<int>('start_at');
+      final endSec = row.read<int>('end_at');
+      if (endSec <= startSec) continue;
+      final existing = await customSelect(
+        'SELECT 1 FROM day_slices WHERE task_id = ? AND start_at = ?',
+        variables: [Variable<String>(taskId), Variable<int>(startSec)],
+      ).get();
+      if (existing.isNotEmpty) continue;
+
+      final start = DateTime.fromMillisecondsSinceEpoch(startSec * 1000);
+      final end = DateTime.fromMillisecondsSinceEpoch(endSec * 1000);
+      final now = DateTime.now();
+      await into(daySlices).insert(DaySlicesCompanion.insert(
+        id: uuid.v4(),
+        taskId: taskId,
+        startAt: start,
+        endAt: end,
+        createdAt: now,
+        updatedAt: now,
+      ));
+      final minutes = end.difference(start).inMinutes;
+      await customStatement(
+        'UPDATE records SET estimated_minutes = ? '
+        'WHERE id = ? AND estimated_minutes IS NULL',
+        [minutes, taskId],
+      );
     }
   }
 }
