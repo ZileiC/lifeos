@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LifeOS · 单日日程表（A4 打印）</title>
+<style>
+  /*
+   * Print template. Visual tokens mirror the phone DayGrid:
+   *   paper/ink/muted/line  <- dark theme surface/text/outline (light-print variant)
+   *   task palette          <- TaskColors.palette (same 10 hex values)
+   *   left accent bar       <- 3dp accent bar in the phone block
+   *   radius 2mm            <- 8dp block radius
+   *   gap 1.2mm             <- 4dp overlap gap
+   * The hour scale is expressed in mm (9.6mm/h) because the target is A4.
+   */
+  :root {
+    --paper: #FBFAF7;
+    --ink: #1B1E24;
+    --muted: #6B707A;
+    --line: #E4E1D8;
+    --line-soft: #EFECE4;
+    --hour: 9.6mm;
+    --label: 16mm;
+    --gap: 1.2mm;
+    --radius: 2mm;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #E9E7E0; color: var(--ink); }
+  body {
+    font-family: "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .sheet {
+    width: 188mm; min-height: 274mm; margin: 8mm auto; padding: 7mm 6mm 6mm;
+    background: var(--paper); box-shadow: 0 4px 24px rgba(0, 0, 0, .12);
+  }
+  .masthead {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    padding-bottom: 2.4mm; border-bottom: 1.5pt solid var(--ink);
+  }
+  .brand { font-size: 7pt; letter-spacing: .18em; color: var(--muted); text-transform: uppercase; }
+  .date { font-size: 15pt; font-weight: 700; letter-spacing: -.02em; margin-top: .8mm; }
+  .meta { font-size: 7.5pt; color: var(--muted); margin-top: 1mm; }
+  .stats { text-align: right; font-size: 6.4pt; color: var(--muted); line-height: 1.5; }
+  .grid { position: relative; height: calc(24 * var(--hour) + 2mm); margin-top: 2mm; }
+  .hourline { position: absolute; left: var(--label); right: 0; height: .4pt; background: var(--line); }
+  .halfhour { position: absolute; left: var(--label); right: 0; height: .3pt; background: var(--line-soft); }
+  .hourlabel {
+    position: absolute; left: 0; width: calc(var(--label) - 2mm); text-align: right;
+    font-size: 6.2pt; color: var(--muted); transform: translateY(-1.1mm);
+    font-variant-numeric: tabular-nums;
+  }
+  .block {
+    position: absolute; border-radius: var(--radius);
+    padding: 1mm 1.6mm 1mm 2.4mm;
+    background: var(--c-bg); border: .4pt solid var(--c-soft);
+    border-left: 1.6pt solid var(--c);
+    color: var(--ink); overflow: hidden;
+  }
+  .block .title {
+    font-size: 7pt; font-weight: 600; line-height: 1.15;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .block .time { font-size: 6pt; color: var(--muted); margin-top: .4mm; font-variant-numeric: tabular-nums; }
+  .block.overlap { box-shadow: inset 0 0 0 .5pt rgba(180, 90, 80, .55); }
+  .legend {
+    display: flex; justify-content: space-between;
+    margin-top: 2.4mm; font-size: 6pt; color: var(--muted);
+  }
+  .footer {
+    margin-top: 3mm; padding-top: 1.6mm; border-top: .4pt solid var(--line);
+    display: flex; justify-content: space-between; font-size: 6pt; color: var(--muted);
+  }
+  @media print {
+    html, body { background: #fff; }
+    .sheet { width: auto; min-height: 0; margin: 0; box-shadow: none; padding: 0; }
+    .block { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    @page { size: A4 portrait; margin: 11mm 11mm 12mm; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header class="masthead">
+    <div>
+      <div class="brand">LifeOS · Day Plan</div>
+      <div class="date" id="date">11月4日 周三</div>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="stats" id="stats">single-day timetable<br>print template</div>
+  </header>
+  <div class="grid" id="grid"></div>
+  <div class="legend">
+    <span>时间块按任务色；左侧高亮条 = 任务主色</span>
+    <span>同一任务同色 · 重叠并排</span>
+  </div>
+  <div class="footer">
+    <span>LifeOS · /assets/templates/day_timetable.html</span>
+    <span id="footerdate"></span>
+  </div>
+</div>
+
+<script>
+  // Inlined sample so this file renders from file:// without fetch/CORS.
+  // Keep it identical to assets/templates/sample_day.json.
+  const day = {
+    "date": "2026-11-04",
+    "weekday": "周三",
+    "slices": [
+      { "taskId": "report", "title": "写周报", "color": "#7FA7C9", "startAt": "2026-11-04T09:00:00+08:00", "endAt": "2026-11-04T10:30:00+08:00" },
+      { "taskId": "review", "title": "评审 UI 稿", "color": "#9B8FC4", "startAt": "2026-11-04T10:45:00+08:00", "endAt": "2026-11-04T12:00:00+08:00" },
+      { "taskId": "lunch", "title": "午饭", "color": "#D9B36C", "startAt": "2026-11-04T12:00:00+08:00", "endAt": "2026-11-04T13:00:00+08:00" },
+      { "taskId": "report", "title": "写报告", "color": "#7FA7C9", "startAt": "2026-11-04T13:30:00+08:00", "endAt": "2026-11-04T14:30:00+08:00" },
+      { "taskId": "meeting", "title": "周会", "color": "#C98A8A", "startAt": "2026-11-04T14:00:00+08:00", "endAt": "2026-11-04T15:00:00+08:00" },
+      { "taskId": "deep", "title": "深度工作", "color": "#6FB7B7", "startAt": "2026-11-04T15:30:00+08:00", "endAt": "2026-11-04T17:00:00+08:00" },
+      { "taskId": "call", "title": "电话", "color": "#A8B56F", "startAt": "2026-11-04T16:00:00+08:00", "endAt": "2026-11-04T16:30:00+08:00" },
+      { "taskId": "read", "title": "阅读", "color": "#B78FB0", "startAt": "2026-11-04T19:00:00+08:00", "endAt": "2026-11-04T20:00:00+08:00" }
+    ]
+  };
+
+  const HOUR_MM = 9.6;
+  const LABEL_MM = 16;
+  const GAP_MM = 1.2;
+  const TOP_MM = 1;
+
+  const grid = document.getElementById('grid');
+  const minutesOf = (iso) => {
+    const d = new Date(iso);
+    return d.getHours() * 60 + d.getMinutes();
+  };
+  const fmt = (minutes) =>
+    `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+  const yMm = (minutes) => TOP_MM + (minutes / 60) * HOUR_MM;
+  const rgba = (hex, alpha) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  };
+
+  const totalMinutes = day.slices.reduce((sum, s) => sum + (minutesOf(s.endAt) - minutesOf(s.startAt)), 0);
+  document.getElementById('date').textContent = `11月4日 ${day.weekday}`;
+  document.getElementById('meta').textContent = `${day.slices.length} 块 · ${(totalMinutes / 60).toFixed(1)}h`;
+  document.getElementById('footerdate').textContent = day.date;
+
+  for (let hour = 0; hour < 24; hour++) {
+    const line = document.createElement('div');
+    line.className = 'hourline';
+    line.style.top = `${yMm(hour * 60)}mm`;
+    grid.appendChild(line);
+
+    const half = document.createElement('div');
+    half.className = 'halfhour';
+    half.style.top = `${yMm(hour * 60 + 30)}mm`;
+    grid.appendChild(half);
+
+    const label = document.createElement('div');
+    label.className = 'hourlabel';
+    label.style.top = `${yMm(hour * 60)}mm`;
+    label.textContent = fmt(hour * 60);
+    grid.appendChild(label);
+  }
+
+  // Overlap clusters -> side-by-side columns (same rule as the phone DayGrid).
+  const sorted = [...day.slices].sort((a, b) => minutesOf(a.startAt) - minutesOf(b.startAt));
+  const columns = new Map();
+  const clusterMax = new Map();
+  let active = [];
+  let cluster = [];
+  const closeCluster = () => {
+    if (cluster.length === 0) return;
+    const max = cluster.reduce((m, item) => Math.max(m, item.column), 0) + 1;
+    for (const item of cluster) clusterMax.set(item.id, max);
+    cluster = [];
+  };
+  for (const slice of sorted) {
+    const start = minutesOf(slice.startAt);
+    active = active.filter((item) => item.end > start);
+    if (active.length === 0) closeCluster();
+    const used = new Set(active.map((item) => item.column));
+    let column = 0;
+    while (used.has(column)) column++;
+    const item = { id: slice.taskId + '@' + slice.startAt, end: minutesOf(slice.endAt), column };
+    active.push(item);
+    cluster.push(item);
+    columns.set(item.id, column);
+  }
+  closeCluster();
+
+  const available = LABEL_MM + 0.1; // unused on print; each block spans the full grid width
+  for (const slice of day.slices) {
+    const id = slice.taskId + '@' + slice.startAt;
+    const start = minutesOf(slice.startAt);
+    const end = minutesOf(slice.endAt);
+    const maxCols = clusterMax.get(id) || 1;
+    const column = columns.get(id) || 0;
+    const widthMm = (188 - 12 - LABEL_MM - (maxCols - 1) * GAP_MM) / maxCols;
+    const leftMm = LABEL_MM + 0.5 + column * (widthMm + GAP_MM);
+
+    const block = document.createElement('div');
+    block.className = 'block';
+    block.style.setProperty('--c', slice.color);
+    block.style.setProperty('--c-bg', rgba(slice.color, 0.12));
+    block.style.setProperty('--c-soft', rgba(slice.color, 0.32));
+    block.style.left = `${leftMm}mm`;
+    block.style.width = `${widthMm}mm`;
+    block.style.top = `${yMm(start) + 0.3}mm`;
+    block.style.height = `${Math.max(5, ((end - start) / 60) * HOUR_MM - 0.5)}mm`;
+
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = slice.title;
+    block.appendChild(title);
+
+    const time = document.createElement('div');
+    time.className = 'time';
+    time.textContent = `${fmt(start)}–${fmt(end)}`;
+    block.appendChild(time);
+
+    if (maxCols > 1) block.classList.add('overlap');
+    grid.appendChild(block);
+  }
+</script>
+</body>
+</html>
