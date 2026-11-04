@@ -50,20 +50,24 @@ class _SliceEditorSheetState extends ConsumerState<SliceEditorSheet> {
   }
 
   Future<void> _pickDate() async {
+    FocusScope.of(context).unfocus();
     final picked = await showDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
+    if (mounted) FocusManager.instance.primaryFocus?.unfocus();
     if (picked != null) setState(() => _date = picked);
   }
 
   Future<void> _pickTime() async {
+    FocusScope.of(context).unfocus();
     final picked = await showTimePicker(
       context: context,
       initialTime: _time,
     );
+    if (mounted) FocusManager.instance.primaryFocus?.unfocus();
     if (picked != null) setState(() => _time = picked);
   }
 

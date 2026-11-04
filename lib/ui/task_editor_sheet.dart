@@ -18,9 +18,13 @@ DateTime _today() {
 }
 
 class TaskEditorSheet extends ConsumerStatefulWidget {
-  const TaskEditorSheet({super.key, this.existing});
+  const TaskEditorSheet({super.key, this.existing, this.existingSlices = const []});
 
   final Record? existing;
+
+  /// The task's day slices (used to prefill the plan fields and to update the
+  /// single planned slice when the task is edited).
+  final List<DaySlice> existingSlices;
 
   @override
   ConsumerState<TaskEditorSheet> createState() => _TaskEditorSheetState();
@@ -31,6 +35,7 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
   late final TextEditingController _note;
   late final TextEditingController _estimate;
   late final TextEditingController _weeklyDuration;
+  late final TextEditingController _planDuration;
   late int _urgency;
   late int _importance;
   late bool _pinned;
@@ -41,6 +46,10 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
   late TimeOfDay _weeklyStart;
   DateTime? _fromDate;
   DateTime? _toDate;
+  bool _planEnabled = false;
+  DateTime? _planDate;
+  TimeOfDay? _planTime;
+  DaySlice? _planSlice;
 
   bool get _editing => widget.existing != null;
 
@@ -76,6 +85,20 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
     );
     _fromDate = recurrence?.fromDate ?? _today();
     _toDate = recurrence?.toDate ?? _today().add(const Duration(days: 30));
+
+    final slices = [...widget.existingSlices]
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    if (recurrence == null && slices.isNotEmpty) {
+      _planSlice = slices.first;
+      _planEnabled = true;
+      _planDate = slices.first.startAt;
+      _planTime = TimeOfDay.fromDateTime(slices.first.startAt);
+      _planDuration = TextEditingController(
+        text: '${slices.first.endAt.difference(slices.first.startAt).inMinutes}',
+      );
+    } else {
+      _planDuration = TextEditingController(text: '60');
+    }
   }
 
   @override
@@ -84,26 +107,38 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
     _note.dispose();
     _estimate.dispose();
     _weeklyDuration.dispose();
+    _planDuration.dispose();
     super.dispose();
   }
 
+  /// Pickers must not leave the text fields focused: otherwise closing a
+  /// picker pops the keyboard back up.
+  Future<T?> _pick<T>(Future<T?> Function() open) async {
+    FocusScope.of(context).unfocus();
+    final result = await open();
+    if (mounted) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
+    return result;
+  }
+
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dueDate ?? _today(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
+    final picked = await _pick(() => showDatePicker(
+          context: context,
+          initialDate: _dueDate ?? _today(),
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2100),
+        ));
     if (picked != null) {
       setState(() => _dueDate = picked);
     }
   }
 
   Future<void> _pickTime() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _dueTime ?? const TimeOfDay(hour: 9, minute: 0),
-    );
+    final picked = await _pick(() => showTimePicker(
+          context: context,
+          initialTime: _dueTime ?? const TimeOfDay(hour: 9, minute: 0),
+        ));
     if (picked != null) {
       setState(() {
         _dueTime = picked;
@@ -113,36 +148,61 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
   }
 
   Future<void> _pickWeeklyStart() async {
-    final picked = await showTimePicker(
-      context: context,
-      initialTime: _weeklyStart,
-    );
+    final picked = await _pick(() => showTimePicker(
+          context: context,
+          initialTime: _weeklyStart,
+        ));
     if (picked != null) {
       setState(() => _weeklyStart = picked);
     }
   }
 
   Future<void> _pickFrom() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _fromDate ?? _today(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
+    final picked = await _pick(() => showDatePicker(
+          context: context,
+          initialDate: _fromDate ?? _today(),
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2100),
+        ));
     if (picked != null) {
       setState(() => _fromDate = picked);
     }
   }
 
   Future<void> _pickTo() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _toDate ?? _today(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-    );
+    final picked = await _pick(() => showDatePicker(
+          context: context,
+          initialDate: _toDate ?? _today(),
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2100),
+        ));
     if (picked != null) {
       setState(() => _toDate = picked);
+    }
+  }
+
+  Future<void> _pickPlanDate() async {
+    final picked = await _pick(() => showDatePicker(
+          context: context,
+          initialDate: _planDate ?? _today(),
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2100),
+        ));
+    if (picked != null) {
+      setState(() => _planDate = picked);
+    }
+  }
+
+  Future<void> _pickPlanTime() async {
+    final picked = await _pick(() => showTimePicker(
+          context: context,
+          initialTime: _planTime ?? const TimeOfDay(hour: 9, minute: 0),
+        ));
+    if (picked != null) {
+      setState(() {
+        _planTime = picked;
+        _planDate ??= _today();
+      });
     }
   }
 
@@ -224,9 +284,38 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
         final dueHasTime = _dueTime != null;
         final existingRecurring = widget.existing != null &&
             RecurrenceSpec.tryParse(widget.existing!.recurrence) != null;
+
+        // Validate the plan before writing anything, so a bad plan does not
+        // leave a half-saved task.
+        DateTime? planStart;
+        DateTime? planEnd;
+        if (_planEnabled) {
+          final planDate = _planDate;
+          final planTime = _planTime;
+          final planMinutes = int.tryParse(_planDuration.text.trim());
+          if (planDate == null || planTime == null) {
+            _showError('计划要选日期和开始时间');
+            return;
+          }
+          if (planMinutes == null || planMinutes <= 0) {
+            _showError('计划时长要填正整数分钟');
+            return;
+          }
+          planStart = DateTime(
+            planDate.year,
+            planDate.month,
+            planDate.day,
+            planTime.hour,
+            planTime.minute,
+          );
+          planEnd = planStart.add(Duration(minutes: planMinutes));
+        }
+
+        String taskId;
         if (_editing) {
+          taskId = widget.existing!.id;
           await repo.updateTask(
-            widget.existing!.id,
+            taskId,
             title: title,
             note: _note.text.trim(),
             urgency: _urgency,
@@ -238,7 +327,7 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
             clearRecurrence: existingRecurring,
           );
         } else {
-          await repo.createTask(
+          taskId = await repo.createTask(
             title: title,
             note: _note.text.trim(),
             urgency: _urgency,
@@ -248,6 +337,21 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
             estimatedMinutes: estimate,
             pinned: _pinned,
           );
+        }
+
+        if (planStart != null && planEnd != null) {
+          final slice = _planSlice;
+          if (slice != null) {
+            await repo.updateSlice(slice.id, startAt: planStart, endAt: planEnd);
+          } else {
+            await repo.addSlice(
+              taskId: taskId,
+              startAt: planStart,
+              endAt: planEnd,
+            );
+          }
+        } else if (_planSlice != null) {
+          await repo.deleteSlice(_planSlice!.id);
         }
       }
       if (mounted) Navigator.of(context).pop();
@@ -368,6 +472,57 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
                           border: OutlineInputBorder(),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        key: const Key('plan-enabled'),
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('安排到具体时间'),
+                        subtitle: const Text('保存后在日视图生成/更新这块日片'),
+                        value: _planEnabled,
+                        onChanged: (value) {
+                          setState(() {
+                            _planEnabled = value;
+                            if (value) {
+                              _planDate ??= _today();
+                              _planTime ??= const TimeOfDay(hour: 9, minute: 0);
+                            }
+                          });
+                        },
+                      ),
+                      if (_planEnabled) ...[
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          key: const Key('plan-date'),
+                          leading: const Icon(Icons.event_outlined),
+                          title: const Text('计划日期'),
+                          trailing: Text(
+                            _planDate == null
+                                ? '未设置'
+                                : DateFormat('yyyy/MM/dd').format(_planDate!),
+                          ),
+                          onTap: _pickPlanDate,
+                        ),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          key: const Key('plan-time'),
+                          leading: const Icon(Icons.schedule),
+                          title: const Text('计划开始'),
+                          trailing: Text(
+                            (_planTime ?? const TimeOfDay(hour: 9, minute: 0))
+                                .format(context),
+                          ),
+                          onTap: _pickPlanTime,
+                        ),
+                        TextField(
+                          key: const Key('plan-duration'),
+                          controller: _planDuration,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: '计划时长（分钟）',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ],
                     ] else ...[
                       Text('每周哪几天', style: theme.textTheme.labelLarge),
                       const SizedBox(height: 4),
@@ -450,7 +605,7 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
                     ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('置顶（长期任务）'),
+                      title: const Text('置顶（任务列表排最前）'),
                       value: _pinned,
                       onChanged: (value) => setState(() => _pinned = value),
                     ),

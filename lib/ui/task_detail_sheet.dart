@@ -128,7 +128,10 @@ class TaskDetailSheet extends ConsumerWidget {
                     context: context,
                     isScrollControlled: true,
                     useSafeArea: true,
-                    builder: (_) => TaskEditorSheet(existing: task),
+                    builder: (_) => TaskEditorSheet(
+                      existing: task,
+                      existingSlices: slices,
+                    ),
                   ),
                   icon: const Icon(Icons.edit_outlined),
                   label: const Text('编辑'),

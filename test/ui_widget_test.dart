@@ -291,4 +291,34 @@ void main() {
     expect(find.textContaining('连接成功'), findsOneWidget);
     await _disposeApp(tester);
   });
+
+  testWidgets('date picker does not pop the keyboard', (tester) async {
+    await tester.pumpWidget(_app(db));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('task-title')), 'x');
+    expect(tester.testTextInput.isVisible, isTrue);
+
+    await tester.tap(find.text('截止日期'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('确定'));
+    await tester.pumpAndSettle();
+
+    expect(tester.testTextInput.isVisible, isFalse);
+    await _disposeApp(tester);
+  });
+
+  testWidgets('pinned is labeled as list ordering, not long-term',
+      (tester) async {
+    await tester.pumpWidget(_app(db));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add));
+    await tester.pumpAndSettle();
+
+    expect(find.text('置顶（任务列表排最前）'), findsOneWidget);
+    expect(find.text('置顶（长期任务）'), findsNothing);
+    await _disposeApp(tester);
+  });
 }
