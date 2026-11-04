@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/ZileiC/lifeos/security/advisories/new
+    about: Please report security issues privately, not in public issues.
+  - name: Product direction
+    url: https://github.com/ZileiC/lifeos/blob/main/README.md#design
+    about: Read the design notes before proposing changes to the core model.

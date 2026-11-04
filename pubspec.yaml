@@ -1,8 +1,10 @@
 name: lifeos
-description: "LifeOS — 手机优先的待办+轻笔记混合记录 app。"
+description: "LifeOS — a phone-first task + light-note app with AI day-plan suggestions."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+repository: https://github.com/ZileiC/lifeos
+issue_tracker: https://github.com/ZileiC/lifeos/issues
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43

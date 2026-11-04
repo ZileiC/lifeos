@@ -1,0 +1,49 @@
+name: Bug report
+description: Something is broken or behaves differently from the docs.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not paste API keys or personal task text. Redact logs.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: 0.3.0
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: Android 15 (Pixel) / Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: 1. ... 2. ... 3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, logs, AI provider
+      description: Provider/model if AI was involved. Never paste the key.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I reproduced this on the latest build from main
+          required: true
+        - label: This is not a security issue (those go to Security Advisories)
+          required: true

@@ -56,3 +56,21 @@ app.*.map.json
 
 # Trellis per-session binding (local runtime)
 /.trellis/.runtime/
+
+# Internal planning docs (kept outside the public repo)
+/CLAUDE.md
+/PROJECT_STATE.md
+/WORKLOG.md
+/QA_FINDINGS.md
+/FEATURES.md
+/TECH_STACK.md
+/.trellis/
+/.agents/
+/docs/roundtable-*.md
+
+# Local signing / secrets
+/android/key.properties
+*.jks
+*.keystore
+/android/local.properties
+/android/app/google-services.json
