@@ -32,9 +32,15 @@ Stage 1 正在做 14 天实地实验：AI 日计划建议 vs 手动排程。app 
 
 ## 截图
 
-截图正在由维护者更新。在那之前可以本地跑 `flutter run -d windows`，或直接用浏览器打开 `assets/templates/day_timetable.html`。
+| 单日网格 | AI 设置 |
+|---|---|
+| ![单日网格](docs/assets/screenshots/day-grid.png) | ![AI 设置](docs/assets/screenshots/ai-settings.jpg) |
 
-<!-- 真实截图待补充。 -->
+| A4 打印模板 |
+|---|
+| ![A4 打印模板](docs/assets/screenshots/print-template.png) |
+
+问 AI / AI 建议的弹窗截图暂时没放。
 
 
 ## 设计

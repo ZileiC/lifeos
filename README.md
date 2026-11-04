@@ -32,9 +32,16 @@ The core product decision is C′: the phone is the capture/plan/availability su
 
 ## Screenshots
 
-Screenshots are being updated by the maintainer. Until then, run the app locally (`flutter run -d windows`) or open `assets/templates/day_timetable.html` in a browser.
+| Day grid | AI settings |
+|---|---|
+| ![Day grid](docs/assets/screenshots/day-grid.png) | ![AI settings](docs/assets/screenshots/ai-settings.jpg) |
 
-<!-- Real screenshots will be added here once provided. -->
+| A4 print template |
+|---|
+| ![Print template](docs/assets/screenshots/print-template.png) |
+
+The ask-AI and suggestion dialogs are not shown here yet.
+
 
 
 ## Design
