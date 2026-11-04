@@ -272,6 +272,28 @@ class TaskRepository {
     }
   }
 
+  /// Rewrites a weekly task's slices from [RecurrenceSpec.fromDate] onward
+  /// when the user edits the template (weekdays/time/duration/range). Past
+  /// slices stay untouched.
+  Future<void> replaceRecurringSlices(
+    String taskId,
+    RecurrenceSpec spec,
+  ) async {
+    final now = DateTime.now();
+    final from = _dateOnly(spec.fromDate);
+    final existing = await (_db.select(_s)
+          ..where((slice) =>
+              slice.taskId.equals(taskId) &
+              slice.startAt.isBiggerOrEqualValue(from)))
+        .get();
+    for (final slice in existing) {
+      await (_db.update(_s)..where((s) => s.id.equals(slice.id))).write(
+        DaySlicesCompanion(deletedAt: Value(now), updatedAt: Value(now)),
+      );
+    }
+    await _generateSlices(taskId, spec, now);
+  }
+
   // ---------- slice writes ----------
 
   Future<String> addSlice({

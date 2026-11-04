@@ -111,7 +111,7 @@ void main() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final start = today.add(Duration(hours: (now.hour + 1).clamp(0, 23)));
-    final end = start.add(const Duration(hours: 1));
+    final end = start.add(const Duration(minutes: 30));
     await _pumpApp(tester, db, _jsonFor(taskId: taskId, start: start, end: end));
 
     await tester.tap(find.text('日视图'));
@@ -141,7 +141,7 @@ void main() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final start = today.add(Duration(hours: (now.hour + 1).clamp(0, 23)));
-    final end = start.add(const Duration(hours: 1));
+    final end = start.add(const Duration(minutes: 30));
     await _pumpApp(tester, db, _jsonFor(taskId: taskId, start: start, end: end));
 
     await tester.tap(find.text('日视图'));
