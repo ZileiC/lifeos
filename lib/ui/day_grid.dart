@@ -402,7 +402,7 @@ class _SliceBlock extends StatelessWidget {
                         Expanded(
                           child: Text(
                             entry.task.title,
-                            maxLines: 2,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurface,
