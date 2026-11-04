@@ -3,13 +3,17 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../ai/ai_models.dart';
+import '../data/database.dart';
 import '../data/task_colors.dart';
 import '../data/task_repository.dart';
 
 /// Notion-Calendar-style single-day time grid: a persistent 24h base grid with
 /// hour lines, a red "now" line when the day is today, and task slices
 /// positioned as time blocks. Overlapping slices are laid out side by side in
-/// columns. The grid is drawn even when the day is empty.
+/// columns. AI suggestions are drawn as dashed, lighter blocks on top; nothing
+/// is written until the user confirms them. The grid is drawn even when the
+/// day is empty.
 class DayGrid extends StatefulWidget {
   const DayGrid({
     super.key,
@@ -18,6 +22,9 @@ class DayGrid extends StatefulWidget {
     required this.isToday,
     required this.now,
     required this.onEditSlice,
+    this.suggested = const <AiSliceSuggestion>[],
+    this.suggestedTasks = const <String, Record>{},
+    this.onTapSuggested,
   });
 
   final DateTime day;
@@ -25,6 +32,9 @@ class DayGrid extends StatefulWidget {
   final bool isToday;
   final DateTime now;
   final ValueChanged<DaySliceWithTask> onEditSlice;
+  final List<AiSliceSuggestion> suggested;
+  final Map<String, Record> suggestedTasks;
+  final ValueChanged<AiSliceSuggestion>? onTapSuggested;
 
   @override
   State<DayGrid> createState() => _DayGridState();
@@ -151,6 +161,13 @@ class _DayGridState extends State<DayGrid> {
                     isNext: identical(placement.entry, next),
                     theme: theme,
                   ),
+                for (var index = 0; index < widget.suggested.length; index++)
+                  ..._positionedSuggested(
+                    widget.suggested[index],
+                    index,
+                    available: available,
+                    theme: theme,
+                  ),
               ],
             ),
           );
@@ -200,8 +217,7 @@ class _DayGridState extends State<DayGrid> {
   /// Returned slices sorted by start, each with its column and the number of
   /// columns in its connected overlap cluster. Non-overlapping clusters keep
   /// column count 1 (full width).
-  List<_Placement> _layout() {
-    final sorted = [...widget.slices]
+  List<_Placement> _layout() {    final sorted = [...widget.slices]
       ..sort((a, b) => a.slice.startAt.compareTo(b.slice.startAt));
     final columns = <String, int>{};
     final clusterMax = <String, int>{};
@@ -246,6 +262,44 @@ class _DayGridState extends State<DayGrid> {
               columns: clusterMax[entry.slice.id] ?? 1,
             ))
         .toList();
+  }
+
+  List<Widget> _positionedSuggested(
+    AiSliceSuggestion slice,
+    int index, {
+    required double available,
+    required ThemeData theme,
+  }) {
+    final start = slice.startAt;
+    final end = slice.endAt;
+    final startMinutes = start.hour * 60 + start.minute;
+    final durationMinutes = end.difference(start).inMinutes;
+    final top = topOffset + startMinutes / 60 * hourHeight + 1;
+    final height =
+        (durationMinutes / 60 * hourHeight - 2).clamp(28.0, double.infinity);
+    final task = widget.suggestedTasks[slice.taskId];
+    final color = task == null
+        ? theme.colorScheme.primary
+        : Color(TaskColors.resolve(task.color, task.id));
+    return [
+      Positioned(
+        left: labelWidth + 6,
+        width: available,
+        top: top,
+        height: height,
+        child: _SuggestedSliceBlock(
+          key: Key('suggested-$index'),
+          title: task?.title ?? slice.taskId,
+          color: color,
+          start: start,
+          end: end,
+          reason: slice.reason,
+          onTap: widget.onTapSuggested == null
+              ? null
+              : () => widget.onTapSuggested!(slice),
+        ),
+      ),
+    ];
   }
 
   DaySliceWithTask? _current() {
@@ -380,6 +434,146 @@ class _SliceBlock extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SuggestedSliceBlock extends StatelessWidget {
+  const _SuggestedSliceBlock({
+    super.key,
+    required this.title,
+    required this.color,
+    required this.start,
+    required this.end,
+    required this.reason,
+    required this.onTap,
+  });
+
+  final String title;
+  final Color color;
+  final DateTime start;
+  final DateTime end;
+  final String reason;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final startLabel = DateFormat('HH:mm').format(start);
+    final endLabel = DateFormat('HH:mm').format(end);
+    return CustomPaint(
+      foregroundPainter: _DashedBorderPainter(
+        color: color.withValues(alpha: 0.85),
+        radius: 8,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Container(
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 3,
+                  child: ColoredBox(color: color.withValues(alpha: 0.55)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(9, 6, 9, 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.85),
+                          fontWeight: FontWeight.w600,
+                          height: 1.15,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Text(
+                            '$startLabel–$endLabel',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              'AI 建议',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: color,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(
+        Offset.zero & size,
+        Radius.circular(radius),
+      ));
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    const dash = 6.0;
+    const gap = 4.0;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = math.min(distance + dash, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }
 
 class _BlockTag extends StatelessWidget {

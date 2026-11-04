@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lifeos/ai/ai_models.dart';
 import 'package:lifeos/data/database.dart';
 import 'package:lifeos/data/task_repository.dart';
 import 'package:lifeos/ui/day_grid.dart';
@@ -152,6 +153,32 @@ void main() {
     expect(p1.left, isNot(equals(p2.left)));
     expect(p1.width, p2.width);
     expect(p1.width, lessThan(800));
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('AI suggestions render as lighter dashed blocks', (tester) async {
+    final task = _task(color: 0xFF7FA7C9);
+    final suggestion = AiSliceSuggestion(
+      taskId: 't1',
+      startAt: DateTime(2026, 11, 4, 9),
+      endAt: DateTime(2026, 11, 4, 10),
+      reason: 'deep work',
+    );
+    await tester.pumpWidget(_wrap(DayGrid(
+      day: DateTime(2026, 11, 4),
+      slices: const [],
+      isToday: false,
+      now: DateTime(2026, 11, 4, 12),
+      onEditSlice: (_) {},
+      suggested: [suggestion],
+      suggestedTasks: {'t1': task},
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('suggested-0')), findsOneWidget);
+    expect(find.text('AI 建议'), findsOneWidget);
+    expect(find.text('Task t1'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
   });

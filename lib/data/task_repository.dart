@@ -89,6 +89,47 @@ class TaskRepository {
     DateTime from,
     DateTime to,
   ) {
+    return _slicesBetweenQuery(from, to).watch().map(_readSlices);
+  }
+
+  /// One-shot reads for the AI scheduling snapshot (no stream subscription).
+  Future<List<Record>> fetchActiveTasks() async {
+    final stmt = _db.select(_r)
+      ..where((r) => r.deletedAt.isNull() & r.completedAt.isNull())
+      ..orderBy([
+        (r) => OrderingTerm(expression: r.pinned, mode: OrderingMode.desc),
+        (r) => OrderingTerm(expression: r.urgency, mode: OrderingMode.desc),
+        (r) => OrderingTerm(expression: r.importance, mode: OrderingMode.desc),
+        (r) => OrderingTerm(expression: r.dueAt, mode: OrderingMode.asc),
+      ]);
+    return stmt.get();
+  }
+
+  Future<List<DaySliceWithTask>> fetchSlicesForDay(DateTime day) async {
+    final start = _dateOnly(day);
+    final end = start.add(const Duration(days: 1));
+    final query = _db.select(_s).join([
+      innerJoin(_r, _r.id.equalsExp(_s.taskId)),
+    ]);
+    query.where(_s.deletedAt.isNull() &
+        _r.deletedAt.isNull() &
+        _s.startAt.isBiggerOrEqualValue(start) &
+        _s.startAt.isSmallerThanValue(end));
+    query.orderBy([OrderingTerm(expression: _s.startAt)]);
+    return _readSlices(await query.get());
+  }
+
+  Future<List<DaySliceWithTask>> fetchSlicesBetween(
+    DateTime from,
+    DateTime to,
+  ) async {
+    return _readSlices(await _slicesBetweenQuery(from, to).get());
+  }
+
+  JoinedSelectStatement<HasResultSet, dynamic> _slicesBetweenQuery(
+    DateTime from,
+    DateTime to,
+  ) {
     final start = _dateOnly(from);
     final end = _dateOnly(to);
     final query = _db.select(_s).join([
@@ -99,13 +140,15 @@ class TaskRepository {
         _s.startAt.isBiggerOrEqualValue(start) &
         _s.startAt.isSmallerThanValue(end));
     query.orderBy([OrderingTerm(expression: _s.startAt)]);
-    return query.watch().map((rows) => rows
-        .map((row) => DaySliceWithTask(
-              slice: row.readTable(_s),
-              task: row.readTable(_r),
-            ))
-        .toList());
+    return query;
   }
+
+  List<DaySliceWithTask> _readSlices(List<TypedResult> rows) => rows
+      .map((row) => DaySliceWithTask(
+            slice: row.readTable(_s),
+            task: row.readTable(_r),
+          ))
+      .toList();
 
   // ---------- task writes ----------
 

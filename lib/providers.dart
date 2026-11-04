@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -29,6 +30,13 @@ final aiClientProvider = Provider<AiClient>((ref) {
   final client = http.Client();
   ref.onDispose(client.close);
   return OpenAiCompatibleClient(client);
+});
+
+/// The bundled scheduling skill (v2), used by the AI scheduling prompt. Tests
+/// override this with a fixed string so the asset loader is not exercised
+/// under the fake-async widget tester.
+final schedulingSkillProvider = FutureProvider<String>((ref) {
+  return rootBundle.loadString('assets/skill/scheduling.md');
 });
 
 final tasksProvider = StreamProvider<List<Record>>((ref) {

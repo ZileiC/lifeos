@@ -28,12 +28,12 @@ class AiScheduleService {
   }) async {
     final now = _now();
     final dayStart = DateTime(targetDay.year, targetDay.month, targetDay.day);
-    final tasks = await _repository.watchActiveTasks().first;
-    final targetSlices = await _repository.watchSlicesForDay(targetDay).first;
-    final upcoming = await _repository.watchSlicesBetween(
+    final tasks = await _repository.fetchActiveTasks();
+    final targetSlices = await _repository.fetchSlicesForDay(targetDay);
+    final upcoming = await _repository.fetchSlicesBetween(
       dayStart.add(const Duration(days: 1)),
       dayStart.add(const Duration(days: 8)),
-    ).first;
+    );
 
     final prompt = SchedulerPrompt(
       skill: _skill,

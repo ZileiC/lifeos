@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../ai/ai_models.dart';
+import '../data/database.dart';
 import '../data/task_repository.dart';
 import 'day_grid.dart';
 
@@ -18,6 +20,10 @@ class DayView extends StatelessWidget {
     required this.onToday,
     required this.onAddTask,
     required this.onEditSlice,
+    required this.onAiSchedule,
+    this.aiLoading = false,
+    this.suggested = const <AiSliceSuggestion>[],
+    this.suggestedTasks = const <String, Record>{},
   });
 
   final DateTime day;
@@ -28,6 +34,10 @@ class DayView extends StatelessWidget {
   final VoidCallback onToday;
   final VoidCallback onAddTask;
   final ValueChanged<DaySliceWithTask> onEditSlice;
+  final VoidCallback onAiSchedule;
+  final bool aiLoading;
+  final List<AiSliceSuggestion> suggested;
+  final Map<String, Record> suggestedTasks;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +76,22 @@ class DayView extends StatelessWidget {
                 icon: const Icon(Icons.add_task),
                 label: const Text('排任务'),
               ),
+              if (aiLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              else
+                TextButton.icon(
+                  key: const Key('day-ai'),
+                  onPressed: onAiSchedule,
+                  icon: const Icon(Icons.auto_awesome, size: 18),
+                  label: const Text('AI 排'),
+                ),
               IconButton(
                 key: const Key('day-next'),
                 onPressed: onNext,
@@ -82,6 +108,8 @@ class DayView extends StatelessWidget {
             isToday: isToday,
             now: DateTime.now(),
             onEditSlice: onEditSlice,
+            suggested: suggested,
+            suggestedTasks: suggestedTasks,
           ),
         ),
       ],

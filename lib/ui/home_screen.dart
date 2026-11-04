@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../ai/ai_models.dart';
+import '../ai/ai_schedule.dart';
 import '../data/database.dart';
 import '../data/task_repository.dart';
 import '../providers.dart';
 import 'ai_settings_sheet.dart';
+import 'ai_suggestion_sheet.dart';
 import 'day_view.dart';
 import 'slice_editor_sheet.dart';
 import 'task_detail_sheet.dart';
@@ -25,6 +28,75 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   HomeSegment _segment = HomeSegment.tasks;
   final Set<String> _selected = <String>{};
   bool _selectionMode = false;
+  AiSuggestion? _aiSuggestion;
+  bool _aiLoading = false;
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _aiSuggest(DateTime day) async {
+    if (_aiLoading) return;
+    final providerStore = ref.read(aiProviderStoreProvider);
+    final providers = await providerStore.readProviders();
+    final activeId = await providerStore.readActiveId();
+    final provider = providers.firstWhere(
+      (item) => item.id == activeId,
+      orElse: () => providers.first,
+    );
+    final apiKey = await ref.read(aiKeyStoreProvider).read(provider.id);
+    if (!mounted) return;
+    if (apiKey == null || apiKey.isEmpty) {
+      _toast('先在 AI 设置里填 API key');
+      return;
+    }
+
+    setState(() => _aiLoading = true);
+    try {
+      final skill = await ref.read(schedulingSkillProvider.future);
+      final service = AiScheduleService(
+        ref.read(aiClientProvider),
+        ref.read(taskRepositoryProvider),
+        skill,
+      );
+      final suggestion = await service.suggest(
+        provider: provider,
+        apiKey: apiKey,
+        targetDay: day,
+      );
+      if (!mounted) return;
+      setState(() {
+        _aiSuggestion = suggestion;
+        _aiLoading = false;
+      });
+
+      final confirmed = await showModalBottomSheet<List<AiSliceSuggestion>>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => AiSuggestionSheet(suggestion: suggestion),
+      );
+      if (!mounted) return;
+      if (confirmed == null || confirmed.isEmpty) {
+        setState(() => _aiSuggestion = null);
+        return;
+      }
+      await service.apply(suggestion: suggestion, slices: confirmed);
+      if (!mounted) return;
+      setState(() => _aiSuggestion = null);
+      _toast('已写入 ${confirmed.length} 块日片');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _aiLoading = false;
+        _aiSuggestion = null;
+      });
+      _toast('AI 排程失败：$error');
+    }
+  }
 
   void _enterSelection(String id) {
     setState(() {
@@ -261,6 +333,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ref.read(selectedDayProvider.notifier).today(),
                     onAddTask: () => _openTaskPicker(day),
                     onEditSlice: _openSlice,
+                    onAiSchedule: () => _aiSuggest(day),
+                    aiLoading: _aiLoading,
+                    suggested: _aiSuggestion?.slices ??
+                        const <AiSliceSuggestion>[],
+                    suggestedTasks:
+                        _aiSuggestion?.tasks ?? const <String, Record>{},
                   ),
           ),
         ],
