@@ -97,15 +97,25 @@ void main() {
     expect(find.text('Task t1'), findsOneWidget);
     expect(find.text('09:00–10:00'), findsOneWidget);
 
-    final material = tester.widget<Material>(
-      find.ancestor(of: block, matching: find.byType(Material)).first,
+    final container = tester.widget<Container>(
+      find.descendant(of: block, matching: find.byType(Container)).first,
     );
-    expect(material.color, const Color(0xFF7FA7C9));
+    final decoration = container.decoration! as BoxDecoration;
+    expect(
+      decoration.color,
+      const Color(0xFF7FA7C9).withValues(alpha: 0.16),
+    );
+    final accent = tester.widget<ColoredBox>(
+      find
+          .descendant(of: block, matching: find.byType(ColoredBox))
+          .first,
+    );
+    expect(accent.color, const Color(0xFF7FA7C9));
 
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('overlapping slices get a warning border', (tester) async {
+  testWidgets('overlapping slices are placed side by side', (tester) async {
     final task = _task();
     final first = _slice(
       id: 's1',
@@ -129,16 +139,19 @@ void main() {
     )));
     await tester.pumpAndSettle();
 
-    final material = tester.widget<Material>(
-      find
-          .ancestor(
-            of: find.byKey(const Key('day-block-s1')),
-            matching: find.byType(Material),
-          )
-          .first,
-    );
-    final shape = material.shape as RoundedRectangleBorder;
-    expect(shape.side.width, 1.5);
+    Positioned positioned(String id) => tester.widget<Positioned>(
+          find
+              .ancestor(
+                of: find.byKey(Key('day-block-$id')),
+                matching: find.byType(Positioned),
+              )
+              .first,
+        );
+    final p1 = positioned('s1');
+    final p2 = positioned('s2');
+    expect(p1.left, isNot(equals(p2.left)));
+    expect(p1.width, p2.width);
+    expect(p1.width, lessThan(800));
 
     await tester.pumpWidget(const SizedBox());
   });

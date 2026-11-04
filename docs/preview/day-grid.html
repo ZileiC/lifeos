@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LifeOS · 单日时间网格（设计预览 v2）</title>
+<style>
+  :root {
+    --bg: #111318;
+    --surface: #191C22;
+    --surface-high: #21252D;
+    --outline: #2E333D;
+    --accent: #8FB4CC;
+    --on: #E4E6EB;
+    --dim: #9AA0AB;
+    --danger: #C97676;
+    --hour: 88px;
+    --label: 52px;
+    --ease: cubic-bezier(.2, .7, .2, 1);
+    --block-gap: 4px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--on); }
+  body {
+    font-family: "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app {
+    max-width: 920px; margin: 0 auto; height: 100vh;
+    display: flex; flex-direction: column; background: var(--bg);
+  }
+  .topbar {
+    height: 56px; flex: none; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 16px;
+    border-bottom: 1px solid var(--outline);
+  }
+  .brand { font-size: 20px; font-weight: 600; letter-spacing: -0.3px; }
+  .actions { display: flex; gap: 4px; }
+  .iconbtn {
+    width: 36px; height: 36px; border: 0; background: transparent;
+    color: var(--dim); border-radius: 10px; cursor: pointer;
+    display: grid; place-items: center;
+    transition: background .12s var(--ease), color .12s var(--ease);
+  }
+  .iconbtn:hover { background: var(--surface-high); color: var(--on); }
+  .daybar {
+    flex: none; display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-bottom: 1px solid var(--outline);
+  }
+  .daybar .date { font-size: 16px; font-weight: 600; }
+  .daybar .back {
+    color: var(--accent); font-size: 12px; border: 0; background: transparent;
+    cursor: pointer; padding: 0; margin-top: 2px;
+  }
+  .daybar .back:hover { text-decoration: underline; }
+  .spacer { flex: 1; }
+  .btn {
+    border: 0; background: transparent; color: var(--accent); font-size: 13px;
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    padding: 8px 10px; border-radius: 10px;
+    transition: background .12s var(--ease);
+  }
+  .btn:hover { background: var(--surface-high); }
+  .gridwrap {
+    flex: 1; overflow-y: auto; position: relative;
+    scrollbar-width: thin; scrollbar-color: var(--outline) transparent;
+  }
+  .grid { position: relative; height: calc(24 * var(--hour) + 40px); padding-top: 8px; }
+  .hourline {
+    position: absolute; left: var(--label); right: 0; height: 1px;
+    background: rgba(46, 51, 61, .55);
+  }
+  .halfhour {
+    position: absolute; left: var(--label); right: 0; height: 1px;
+    background: rgba(46, 51, 61, .22);
+  }
+  .hourlabel {
+    position: absolute; left: 0; width: calc(var(--label) - 8px);
+    text-align: right; font-size: 10px; letter-spacing: .01em;
+    color: rgba(154, 160, 171, .7); transform: translateY(-7px);
+    font-variant-numeric: tabular-nums;
+  }
+  .now {
+    position: absolute; left: var(--label); right: 0; height: 2px;
+    background: var(--danger); z-index: 3;
+    box-shadow: 0 0 10px rgba(201, 118, 118, .35);
+  }
+  .nowlabel {
+    position: absolute; left: 0; width: calc(var(--label) - 8px);
+    text-align: right; font-size: 10px; color: var(--danger);
+    transform: translateY(-8px); z-index: 3; font-variant-numeric: tabular-nums;
+  }
+  .nowdot {
+    position: absolute; left: var(--label); width: 7px; height: 7px;
+    border-radius: 50%; background: var(--danger);
+    transform: translate(-50%, -50%); z-index: 3;
+    box-shadow: 0 0 8px rgba(201, 118, 118, .6);
+  }
+  /* Time block: left accent bar (full color) + lighter translucent body. */
+  .block {
+    position: absolute; border-radius: 8px;
+    padding: 7px 9px 7px 12px;
+    background: var(--c-bg);
+    border: 1px solid var(--c-soft);
+    border-left: 3px solid var(--c);
+    color: var(--on); overflow: hidden; cursor: pointer; z-index: 2;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, .18);
+    transition: transform .12s var(--ease), filter .12s var(--ease), box-shadow .12s var(--ease);
+  }
+  .block:hover {
+    filter: brightness(1.06); transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .32);
+  }
+  .block.overlap { box-shadow: inset 0 0 0 1px rgba(201, 118, 118, .75); }
+  .block .title {
+    font-size: 13px; font-weight: 600; line-height: 1.15;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .block .meta {
+    margin-top: 3px; font-size: 11px; color: var(--dim);
+    display: flex; align-items: center; gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .tag {
+    font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+    background: rgba(228, 230, 235, .08); color: var(--on);
+  }
+  .footer {
+    height: 52px; flex: none; border-top: 1px solid var(--outline);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; color: var(--dim); font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  .fab {
+    width: 44px; height: 44px; border-radius: 14px; border: 0;
+    background: var(--accent); color: #10202B; font-size: 22px; cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .25);
+    transition: filter .12s var(--ease), transform .12s var(--ease);
+  }
+  .fab:hover { filter: brightness(1.05); transform: translateY(-1px); }
+  .hint {
+    max-width: 920px; margin: 0 auto; padding: 8px 16px 10px;
+    color: var(--dim); font-size: 11px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">LifeOS</div>
+    <div class="actions">
+      <button class="iconbtn" title="AI 设置">✳</button>
+      <button class="iconbtn" title="搜索">⌕</button>
+    </div>
+  </div>
+
+  <div class="daybar">
+    <button class="btn" title="前一天" aria-label="前一天">‹</button>
+    <div>
+      <div class="date" id="date">11月4日 周三</div>
+      <button class="back">回到今天</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn">＋ 排任务</button>
+    <button class="btn" title="后一天" aria-label="后一天">›</button>
+  </div>
+
+  <div class="gridwrap" id="gridwrap">
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="footer">
+    <span id="summary">今日已排 8 块 · 7.5h</span>
+    <span id="nowtext">现在 13:52</span>
+    <button class="fab" title="新建">＋</button>
+  </div>
+</div>
+<div class="hint">预览 v2：88px/小时（时间行可完整显示）；重叠块并排错开；色块 = 左侧高亮条 + 同色低透明度填充。</div>
+
+<script>
+  const HOUR = 88;
+  const TOP = 8;
+  const GAP = 4;
+  const PALETTE = ['#7FA7C9', '#8FBFA8', '#D9B36C', '#C98A8A', '#9B8FC4', '#6FB7B7', '#C4A484', '#A8B56F', '#B78FB0', '#8E9EC4'];
+
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const slices = [
+    { id: 's1', title: '写周报', start: 9 * 60, end: 10 * 60 + 30, color: 0 },
+    { id: 's2', title: '评审 UI 稿', start: 10 * 60 + 45, end: 12 * 60, color: 4 },
+    { id: 's3', title: '午饭', start: 12 * 60, end: 13 * 60, color: 2 },
+    { id: 's4', title: '写报告', start: 13 * 60 + 30, end: 14 * 60 + 30, color: 0 },
+    { id: 's5', title: '周会', start: 14 * 60, end: 15 * 60, color: 3 },
+    { id: 's6', title: '深度工作', start: 15 * 60 + 30, end: 17 * 60, color: 5 },
+    { id: 's7', title: '电话', start: 16 * 60, end: 16 * 60 + 30, color: 7 },
+    { id: 's8', title: '阅读', start: 19 * 60, end: 20 * 60, color: 8 }
+  ];
+
+  const grid = document.getElementById('grid');
+  const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const y = (minutes) => TOP + (minutes / 60) * HOUR;
+  const rgba = (hex, alpha) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  };
+
+  for (let hour = 0; hour < 24; hour++) {
+    const line = document.createElement('div');
+    line.className = 'hourline';
+    line.style.top = `${y(hour * 60)}px`;
+    grid.appendChild(line);
+
+    const half = document.createElement('div');
+    half.className = 'halfhour';
+    half.style.top = `${y(hour * 60 + 30)}px`;
+    grid.appendChild(half);
+
+    const label = document.createElement('div');
+    label.className = 'hourlabel';
+    label.style.top = `${y(hour * 60)}px`;
+    label.textContent = fmt(hour * 60);
+    grid.appendChild(label);
+  }
+
+  // Overlap clusters -> side-by-side columns. Each connected overlap cluster
+  // shares one column count; non-overlapping blocks keep the full width.
+  const sorted = [...slices].sort((a, b) => a.start - b.start);
+  const columns = new Map();
+  const clusterMax = new Map();
+  let active = [];
+  let cluster = [];
+
+  const closeCluster = () => {
+    if (cluster.length === 0) return;
+    const max = cluster.reduce((m, item) => Math.max(m, item.column), 0) + 1;
+    for (const item of cluster) clusterMax.set(item.id, max);
+    cluster = [];
+  };
+
+  for (const slice of sorted) {
+    active = active.filter((item) => item.end > slice.start);
+    if (active.length === 0) closeCluster();
+    const used = new Set(active.map((item) => item.column));
+    let column = 0;
+    while (used.has(column)) column++;
+    const item = { id: slice.id, end: slice.end, column };
+    active.push(item);
+    cluster.push(item);
+    columns.set(slice.id, column);
+  }
+  closeCluster();
+
+  const overlapping = new Set();
+  for (let i = 0; i < slices.length; i++) {
+    for (let j = i + 1; j < slices.length; j++) {
+      if (slices[i].start < slices[j].end && slices[j].start < slices[i].end) {
+        overlapping.add(slices[i].id);
+        overlapping.add(slices[j].id);
+      }
+    }
+  }
+
+  const current = slices.find((s) => s.start <= nowMinutes && s.end > nowMinutes);
+  const next = slices.find((s) => s.start > nowMinutes);
+  const available = grid.clientWidth - 52 - 6 - 10;
+
+  for (const slice of slices) {
+    const color = PALETTE[slice.color % PALETTE.length];
+    const maxCols = clusterMax.get(slice.id) || 1;
+    const column = columns.get(slice.id) || 0;
+    const step = maxCols === 1 ? available : (available - (maxCols - 1) * GAP) / maxCols;
+
+    const block = document.createElement('div');
+    block.className = 'block' + (overlapping.has(slice.id) ? ' overlap' : '');
+    block.style.setProperty('--c', color);
+    block.style.setProperty('--c-bg', rgba(color, 0.16));
+    block.style.setProperty('--c-soft', rgba(color, 0.32));
+    block.style.left = `${52 + 6 + column * (step + GAP)}px`;
+    block.style.width = `${step}px`;
+    block.style.top = `${y(slice.start) + 1}px`;
+    block.style.height = `${Math.max(28, ((slice.end - slice.start) / 60) * HOUR - 2)}px`;
+
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = slice.title;
+    block.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = `${fmt(slice.start)}–${fmt(slice.end)}`;
+    if (current && current.id === slice.id) {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = '当前';
+      meta.appendChild(tag);
+    } else if (next && next.id === slice.id) {
+      const tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = '下一块';
+      meta.appendChild(tag);
+    }
+    block.appendChild(meta);
+    grid.appendChild(block);
+  }
+
+  const nowLine = document.createElement('div');
+  nowLine.className = 'now';
+  nowLine.style.top = `${y(nowMinutes)}px`;
+  grid.appendChild(nowLine);
+
+  const nowLabel = document.createElement('div');
+  nowLabel.className = 'nowlabel';
+  nowLabel.style.top = `${y(nowMinutes)}px`;
+  nowLabel.textContent = '现在';
+  grid.appendChild(nowLabel);
+
+  const nowDot = document.createElement('div');
+  nowDot.className = 'nowdot';
+  nowDot.style.top = `${y(nowMinutes)}px`;
+  grid.appendChild(nowDot);
+
+  const totalMinutes = slices.reduce((sum, s) => sum + (s.end - s.start), 0);
+  document.getElementById('summary').textContent =
+    `今日已排 ${slices.length} 块 · ${(totalMinutes / 60).toFixed(1)}h`;
+  document.getElementById('nowtext').textContent = `现在 ${fmt(nowMinutes)}`;
+
+  const wrap = document.getElementById('gridwrap');
+  requestAnimationFrame(() => {
+    wrap.scrollTop = Math.max(0, y(nowMinutes) - 2 * HOUR);
+  });
+</script>
+</body>
+</html>
