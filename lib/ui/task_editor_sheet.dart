@@ -41,6 +41,8 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
   late TaskEditMode _mode;
   DateTime? _dueDate;
   TimeOfDay? _dueTime;
+  DateTime? _startDate;
+  TimeOfDay? _startTime;
   late Set<int> _weekdays;
   late TimeOfDay _weeklyStart;
   DateTime? _fromDate;
@@ -67,6 +69,10 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
     _dueDate = existing?.dueAt;
     _dueTime = existing != null && !existing.allDay
         ? TimeOfDay.fromDateTime(existing.dueAt!)
+        : null;
+    _startDate = existing?.startAt;
+    _startTime = existing?.startAt != null
+        ? TimeOfDay.fromDateTime(existing!.startAt!)
         : null;
 
     _weekdays = recurrence?.weekdays.toSet() ?? {_today().weekday};
@@ -130,6 +136,34 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
       setState(() {
         _dueTime = picked;
         _dueDate ??= _today();
+      });
+    }
+  }
+
+  Future<void> _pickStartDate() async {
+    final picked = await _pick(() => showDatePicker(
+          context: context,
+          initialDate: _startDate ?? _today(),
+          firstDate: DateTime(2020),
+          lastDate: DateTime(2100),
+        ));
+    if (picked != null) {
+      setState(() {
+        _startDate = picked;
+        _startTime ??= const TimeOfDay(hour: 9, minute: 0);
+      });
+    }
+  }
+
+  Future<void> _pickStartTime() async {
+    final picked = await _pick(() => showTimePicker(
+          context: context,
+          initialTime: _startTime ?? const TimeOfDay(hour: 9, minute: 0),
+        ));
+    if (picked != null) {
+      setState(() {
+        _startTime = picked;
+        _startDate ??= _today();
       });
     }
   }
@@ -248,11 +282,29 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
         final existingRecurring = widget.existing != null &&
             RecurrenceSpec.tryParse(widget.existing!.recurrence) != null;
 
-        // The DDL is the deadline, not the start: the planned slice must END
-        // at the deadline, so it starts at dueAt - estimate.
+        // The DDL is the deadline, not the start. Either side can be missing:
+        //   start + ddl -> [start, ddl]
+        //   start only  -> [start, start + estimate]
+        //   ddl only    -> [ddl - estimate, ddl]
+        DateTime? startAt;
+        if (_startDate != null) {
+          startAt = DateTime(
+            _startDate!.year,
+            _startDate!.month,
+            _startDate!.day,
+            _startTime?.hour ?? 0,
+            _startTime?.minute ?? 0,
+          );
+        }
         DateTime? planStart;
         DateTime? planEnd;
-        if (dueAt != null && _dueTime != null) {
+        if (startAt != null && dueAt != null) {
+          planStart = startAt;
+          planEnd = dueAt;
+        } else if (startAt != null) {
+          planStart = startAt;
+          planEnd = startAt.add(Duration(minutes: estimate));
+        } else if (dueAt != null && _dueTime != null) {
           planStart = dueAt.subtract(Duration(minutes: estimate));
           planEnd = dueAt;
         }
@@ -268,6 +320,8 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
             importance: _importance,
             dueAt: dueAt,
             dueHasTime: dueHasTime,
+            startAt: startAt,
+            clearStart: startAt == null,
             estimatedMinutes: estimate,
             pinned: _pinned,
             clearRecurrence: existingRecurring,
@@ -280,6 +334,7 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
             importance: _importance,
             dueAt: dueAt,
             dueHasTime: dueHasTime,
+            startAt: startAt,
             estimatedMinutes: estimate,
             pinned: _pinned,
           );
@@ -384,6 +439,44 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
                     ),
                     const SizedBox(height: 16),
                     if (_mode == TaskEditMode.once) ...[
+                      Text('开始（可选）', style: theme.textTheme.labelLarge),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        key: const Key('start-date'),
+                        leading: const Icon(Icons.play_circle_outline),
+                        title: const Text('开始日期'),
+                        trailing: Text(
+                          _startDate == null
+                              ? '未设置'
+                              : DateFormat('yyyy/MM/dd').format(_startDate!),
+                        ),
+                        onTap: _pickStartDate,
+                      ),
+                      if (_startDate != null)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          key: const Key('start-time'),
+                          leading: const Icon(Icons.schedule),
+                          title: const Text('开始时间'),
+                          trailing: Text(
+                            (_startTime ?? const TimeOfDay(hour: 9, minute: 0))
+                                .format(context),
+                          ),
+                          onTap: _pickStartTime,
+                        ),
+                      if (_startDate != null)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton(
+                            key: const Key('start-clear'),
+                            onPressed: () => setState(() {
+                              _startDate = null;
+                              _startTime = null;
+                            }),
+                            child: const Text('清空开始'),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
                       ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.event_outlined),

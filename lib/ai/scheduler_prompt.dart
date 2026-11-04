@@ -66,6 +66,7 @@ Hard requirements:
     } else {
       for (final task in tasks.take(50)) {
         buffer.writeln('- ${task.id} | ${task.title} | U:${task.urgency ?? '-'} I:${task.importance ?? '-'} '
+            '| start:${task.startAt == null ? '-' : task.startAt!.toIso8601String()} '
             '| ddl:${task.dueAt == null ? '-' : task.dueAt!.toIso8601String()} '
             '| est:${task.estimatedMinutes == null ? '-' : '${task.estimatedMinutes}m'} '
             '| pinned:${task.pinned ? 'yes' : 'no'} '

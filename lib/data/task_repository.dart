@@ -159,6 +159,7 @@ class TaskRepository {
     int? importance,
     DateTime? dueAt,
     bool dueHasTime = true,
+    DateTime? startAt,
     int? estimatedMinutes,
     bool pinned = false,
     RecurrenceSpec? recurrence,
@@ -170,6 +171,7 @@ class TaskRepository {
     final resolvedAllDay = recurring == null ? !dueHasTime : true;
     final resolvedEstimate =
         recurring?.durationMinutes ?? estimatedMinutes;
+    final resolvedStart = recurring == null ? startAt : null;
 
     await _db.transaction(() async {
       await _db.into(_r).insert(RecordsCompanion.insert(
@@ -179,6 +181,7 @@ class TaskRepository {
             pinned: Value(pinned),
             allDay: Value(resolvedAllDay),
             dueAt: Value(resolvedDue),
+            startAt: Value(resolvedStart),
             urgency: Value(urgency),
             importance: Value(importance),
             estimatedMinutes: Value(resolvedEstimate),
@@ -204,6 +207,8 @@ class TaskRepository {
     int? importance,
     DateTime? dueAt,
     bool? dueHasTime,
+    DateTime? startAt,
+    bool? clearStart,
     int? estimatedMinutes,
     bool? pinned,
     RecurrenceSpec? recurrence,
@@ -217,6 +222,11 @@ class TaskRepository {
     Value<int?> estimateValue = estimatedMinutes == null
         ? const Value.absent()
         : Value(estimatedMinutes);
+    final Value<DateTime?> startValue = clearStart == true
+        ? const Value(null)
+        : startAt == null
+            ? const Value.absent()
+            : Value(startAt);
 
     Value<String?> recurrenceValue;
     if (clearRecurrence) {
@@ -239,6 +249,7 @@ class TaskRepository {
             importance == null ? const Value.absent() : Value(importance),
         dueAt: dueValue,
         allDay: allDayValue,
+        startAt: startValue,
         estimatedMinutes: estimateValue,
         pinned: pinned == null ? const Value.absent() : Value(pinned),
         recurrence: recurrenceValue,

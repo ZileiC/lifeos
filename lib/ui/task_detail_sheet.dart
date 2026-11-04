@@ -169,11 +169,19 @@ class TaskDetailSheet extends ConsumerWidget {
           '${fmt(start)}–${fmt(end)} · '
           '至 ${DateFormat('yyyy/MM/dd').format(recurrence.toDate)}';
     }
+    final start = task.startAt;
     final due = task.dueAt;
-    if (due == null) return '无截止';
-    return task.allDay
-        ? '截止 ${DateFormat('yyyy/MM/dd').format(due)}'
-        : '截止 ${DateFormat('yyyy/MM/dd HH:mm').format(due)}';
+    if (start == null && due == null) return '无开始/截止';
+    final parts = <String>[];
+    if (start != null) {
+      parts.add('开始 ${DateFormat('yyyy/MM/dd HH:mm').format(start)}');
+    }
+    if (due != null) {
+      parts.add(task.allDay
+          ? '截止 ${DateFormat('yyyy/MM/dd').format(due)}'
+          : '截止 ${DateFormat('yyyy/MM/dd HH:mm').format(due)}');
+    }
+    return parts.join(' · ');
   }
 
   String _effortLabel(
