@@ -391,41 +391,47 @@ class _SliceBlock extends StatelessWidget {
                 child: ColoredBox(color: color),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(9, 6, 9, 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
+                padding: const EdgeInsets.fromLTRB(9, 4, 9, 4),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxHeight < 52;
+                    return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: Text(
-                            entry.task.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface,
-                              fontWeight: FontWeight.w600,
-                              height: 1.15,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                entry.task.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: compact ? 12 : null,
+                                  height: 1.15,
+                                ),
+                              ),
                             ),
+                            if (isCurrent)
+                              const _BlockTag(text: '当前')
+                            else if (isNext)
+                              const _BlockTag(text: '下一块'),
+                          ],
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          '$start–$end',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: compact ? 9 : 11,
                           ),
                         ),
-                        if (isCurrent)
-                          const _BlockTag(text: '当前')
-                        else if (isNext)
-                          const _BlockTag(text: '下一块'),
                       ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$start–$end',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
             ],
@@ -485,52 +491,58 @@ class _SuggestedSliceBlock extends StatelessWidget {
                   child: ColoredBox(color: color.withValues(alpha: 0.55)),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(9, 6, 9, 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface
-                              .withValues(alpha: 0.85),
-                          fontWeight: FontWeight.w600,
-                          height: 1.15,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
+                  padding: const EdgeInsets.fromLTRB(9, 4, 9, 4),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxHeight < 52;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '$startLabel–$endLabel',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                              fontSize: 11,
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.85),
+                              fontWeight: FontWeight.w600,
+                              fontSize: compact ? 12 : null,
+                              height: 1.15,
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: color.withValues(alpha: 0.16),
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              'AI 建议',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: color,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
+                          const SizedBox(height: 1),
+                          Row(
+                            children: [
+                              Text(
+                                '$startLabel–$endLabel',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontSize: compact ? 9 : 11,
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.16),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  'AI 建议',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: color,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
-                      ),
-                    ],
+                      );
+                    },
                   ),
                 ),
               ],
