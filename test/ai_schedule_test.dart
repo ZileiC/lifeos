@@ -117,8 +117,8 @@ void main() {
       final plan = AiPlan.parse(_json([
         {
           'taskId': 't1',
-          'startAt': '2026-11-04T09:00:00+08:00',
-          'endAt': '2026-11-04T10:00:00+08:00',
+          'startAt': DateTime(2026,11,4,9).toIso8601String(),
+          'endAt': DateTime(2026,11,4,10).toIso8601String(),
           'reason': 'deep work',
         }
       ]));
@@ -143,7 +143,7 @@ void main() {
     test('rejects a malformed slice', () {
       expect(
         () => AiPlan.parse(_json([
-          {'startAt': '2026-11-04T09:00:00+08:00'}
+          {'startAt': DateTime(2026,11,4,9).toIso8601String()}
         ])),
         throwsA(isA<AiPlanFormatException>()),
       );
@@ -319,8 +319,8 @@ void main() {
       final client = _FakeAiClient(_json([
         {
           'taskId': taskId,
-          'startAt': '2026-11-04T09:00:00+08:00',
-          'endAt': '2026-11-04T10:00:00+08:00',
+          'startAt': DateTime(2026,11,4,9).toIso8601String(),
+          'endAt': DateTime(2026,11,4,10).toIso8601String(),
           'reason': 'morning deep work',
         }
       ]));
@@ -362,14 +362,14 @@ void main() {
       final client = _FakeAiClient(_json([
         {
           'taskId': taskId,
-          'startAt': '2026-11-04T09:00:00+08:00',
-          'endAt': '2026-11-04T10:00:00+08:00',
+          'startAt': DateTime(2026,11,4,9).toIso8601String(),
+          'endAt': DateTime(2026,11,4,10).toIso8601String(),
           'reason': 'morning',
         },
         {
           'taskId': taskId,
-          'startAt': '2026-11-04T14:00:00+08:00',
-          'endAt': '2026-11-04T15:00:00+08:00',
+          'startAt': DateTime(2026,11,4,14).toIso8601String(),
+          'endAt': DateTime(2026,11,4,15).toIso8601String(),
           'reason': 'afternoon',
         },
       ]));
@@ -422,8 +422,8 @@ void main() {
       final client = _FakeAiClient(_json([
         {
           'taskId': 'invented',
-          'startAt': '2026-11-04T09:00:00+08:00',
-          'endAt': '2026-11-04T10:00:00+08:00',
+          'startAt': DateTime(2026,11,4,9).toIso8601String(),
+          'endAt': DateTime(2026,11,4,10).toIso8601String(),
           'reason': 'x',
         }
       ]));
