@@ -7,6 +7,7 @@ import '../ai/ai_schedule.dart';
 import '../data/database.dart';
 import '../data/task_repository.dart';
 import '../providers.dart';
+import 'ai_ask_sheet.dart';
 import 'ai_settings_sheet.dart';
 import 'ai_suggestion_sheet.dart';
 import 'day_view.dart';
@@ -285,6 +286,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: const Text('LifeOS'),
         actions: [
+          IconButton(
+            key: const Key('ai-ask'),
+            tooltip: '问 AI',
+            icon: const Icon(Icons.forum_outlined),
+            onPressed: () => showModalBottomSheet<void>(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (_) => AiAskSheet(targetDay: day),
+            ),
+          ),
           IconButton(
             key: const Key('ai-settings'),
             tooltip: 'AI 设置',
