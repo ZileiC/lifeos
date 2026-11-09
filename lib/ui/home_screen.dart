@@ -15,6 +15,7 @@ import 'slice_editor_sheet.dart';
 import 'task_detail_sheet.dart';
 import 'task_editor_sheet.dart';
 import 'task_row.dart';
+import 'theme.dart';
 
 enum HomeSegment { tasks, day }
 
@@ -245,21 +246,76 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (tasks.isEmpty) {
       return const Center(child: Text('记下第一件事'));
     }
-    return ListView.separated(
-      itemCount: tasks.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final task = tasks[index];
-        return TaskRow(
-          task: task,
-          slices: byTask[task.id] ?? const <DaySlice>[],
-          selectionMode: _selectionMode,
-          selected: _selected.contains(task.id),
-          onTap: () =>
-              _selectionMode ? _toggleSelection(task.id) : _openDetail(task),
-          onLongPress: () => _enterSelection(task.id),
-        );
-      },
+    final now = DateTime.now();
+    final planned = ref.watch(daySlicesProvider(DateTime(now.year, now.month, now.day)))
+            .value
+            ?.fold<int>(0, (sum, entry) => sum +
+                entry.slice.endAt.difference(entry.slice.startAt).inMinutes) ??
+        0;
+    final load = (planned / 480).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    '今日负荷',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: AppTheme.inkDim,
+                          letterSpacing: 0.12,
+                        ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${(planned / 60).toStringAsFixed(1)} / 8h',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: AppTheme.inkDim,
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 7),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(2),
+                child: LinearProgressIndicator(
+                  value: load,
+                  minHeight: 3,
+                  backgroundColor: AppTheme.line,
+                  valueColor:
+                      const AlwaysStoppedAnimation<Color>(AppTheme.accent),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.only(bottom: 96),
+            itemCount: tasks.length,
+            itemBuilder: (context, index) {
+              final task = tasks[index];
+              return _Reveal(
+                index: index,
+                child: TaskRow(
+                  task: task,
+                  slices: byTask[task.id] ?? const <DaySlice>[],
+                  selectionMode: _selectionMode,
+                  selected: _selected.contains(task.id),
+                  onTap: () => _selectionMode
+                      ? _toggleSelection(task.id)
+                      : _openDetail(task),
+                  onLongPress: () => _enterSelection(task.id),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -284,7 +340,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('LifeOS'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('LifeOS'),
+            const SizedBox(width: 7),
+            Container(
+              width: 6,
+              height: 6,
+              decoration: const BoxDecoration(
+                color: AppTheme.accent,
+                shape: BoxShape.circle,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             key: const Key('ai-ask'),
@@ -318,16 +388,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: SegmentedButton<HomeSegment>(
-              segments: const [
-                ButtonSegment(value: HomeSegment.tasks, label: Text('任务')),
-                ButtonSegment(value: HomeSegment.day, label: Text('日视图')),
+            padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
+            child: Row(
+              children: [
+                _SegmentTab(
+                  label: '任务',
+                  selected: _segment == HomeSegment.tasks,
+                  onTap: () => setState(() => _segment = HomeSegment.tasks),
+                ),
+                const SizedBox(width: 22),
+                _SegmentTab(
+                  label: '日视图',
+                  selected: _segment == HomeSegment.day,
+                  onTap: () => setState(() => _segment = HomeSegment.day),
+                ),
+                const Spacer(),
+                Text(
+                  '${tasks.length} 项',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppTheme.inkDim,
+                        letterSpacing: 0.04,
+                      ),
+                ),
               ],
-              selected: {_segment},
-              onSelectionChanged: (values) {
-                setState(() => _segment = values.first);
-              },
             ),
           ),
           Expanded(
@@ -387,6 +470,79 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             )
           : null,
+    );
+  }
+}
+
+class _SegmentTab extends StatelessWidget {
+  const _SegmentTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: selected ? AppTheme.ink : AppTheme.inkDim,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 5),
+            AnimatedContainer(
+              duration: AppTheme.durBase,
+              curve: AppTheme.easeOut,
+              width: selected ? 18 : 0,
+              height: 2,
+              decoration: BoxDecoration(
+                color: AppTheme.accent,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Reveal extends StatelessWidget {
+  const _Reveal({required this.index, required this.child});
+
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.disableAnimationsOf(context)) return child;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppTheme.durSlow +
+          Duration(milliseconds: 40 * (index % 8)),
+      curve: AppTheme.easeOut,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, (1 - t) * 10),
+          child: child,
+        ),
+      ),
+      child: child,
     );
   }
 }

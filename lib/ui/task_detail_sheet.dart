@@ -37,12 +37,15 @@ class TaskDetailSheet extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Container(
-                  width: 4,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(2),
+                Hero(
+                  tag: 'task-rail-${task.id}',
+                  child: Container(
+                    width: 4,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),

@@ -5,6 +5,7 @@ import '../data/database.dart';
 import '../data/recurrence.dart';
 import '../data/task_colors.dart';
 import '../data/task_math.dart';
+import 'theme.dart';
 
 String _weekdayShort(int day) =>
     const ['一', '二', '三', '四', '五', '六', '日'][day - 1];
@@ -24,13 +25,14 @@ String _planLabel(Record task, RecurrenceSpec? recurrence, int? remaining) {
   if (recurrence != null) {
     final days = recurrence.weekdays.toList()..sort();
     final daysText = days.map(_weekdayShort).join('/');
-    return '每周$daysText · 每次 ${task.estimatedMinutes ?? '—'} 分钟';
+    return '每周$daysText · ${task.estimatedMinutes ?? '—'}min';
   }
   final estimate = task.estimatedMinutes;
-  if (remaining == null) return '预估 ${estimate ?? '—'} 分钟';
+  if (remaining == null) return estimate == null ? '无预估' : '预估 $estimate 分钟';
   return '剩余 $remaining / 预估 $estimate 分钟';
 }
 
+/// Editorial task row: thin color rail, strong title, one tabular meta line.
 class TaskRow extends StatelessWidget {
   const TaskRow({
     super.key,
@@ -59,23 +61,29 @@ class TaskRow extends StatelessWidget {
     final plan = _planLabel(task, recurrence, remaining);
 
     return Material(
-      color: selected ? theme.colorScheme.surfaceContainerHighest : Colors.transparent,
+      color: selected ? AppTheme.surfaceHigh : Colors.transparent,
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppTheme.lineSoft)),
+          ),
           child: Row(
             children: [
-              Container(
-                width: 4,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(2),
+              Hero(
+                tag: 'task-rail-${task.id}',
+                child: Container(
+                  width: 3,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,45 +92,48 @@ class TaskRow extends StatelessWidget {
                       children: [
                         if (task.pinned)
                           const Padding(
-                            padding: EdgeInsets.only(right: 4),
-                            child: Icon(Icons.push_pin, size: 14),
+                            padding: EdgeInsets.only(right: 5),
+                            child: Icon(Icons.push_pin,
+                                size: 13, color: AppTheme.accent),
                           ),
                         Expanded(
                           child: Text(
                             task.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyLarge
-                                ?.copyWith(fontWeight: FontWeight.w500),
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(color: AppTheme.ink),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
                       '$due · $plan',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: AppTheme.inkDim,
+                        letterSpacing: 0.01,
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               Text(
                 'U${task.urgency ?? '—'}  I${task.importance ?? '—'}',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppTheme.inkDim,
+                  letterSpacing: 0.04,
+                ),
               ),
               if (selectionMode) ...[
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Icon(
                   selected ? Icons.check_box : Icons.check_box_outline_blank,
                   size: 20,
-                  color: selected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.outline,
+                  color: selected ? AppTheme.accent : AppTheme.line,
                 ),
               ],
             ],
