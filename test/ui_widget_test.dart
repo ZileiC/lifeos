@@ -196,8 +196,11 @@ void main() {
     await tester.tap(find.byKey(const Key('task-save')));
     await tester.pumpAndSettle();
 
-    final after = await db.select(db.daySlices).get();
-    expect(after, hasLength(before.length));
+    final after = await (db.select(db.daySlices)
+          ..where((s) => s.deletedAt.isNull()))
+        .get();
+    expect(after, hasLength(before.length),
+        reason: 'weekly edit must regenerate the active slices, not leave none');
     final task = await (db.select(db.records)
           ..where((r) => r.id.equals(id)))
         .getSingle();
@@ -208,8 +211,6 @@ void main() {
   testWidgets('batch move to day and single-step undo', (tester) async {
     final id = await repo.createTask(
       title: 'A',
-      dueAt: DateTime(2026, 11, 10, 14, 30),
-      dueHasTime: true,
       estimatedMinutes: 60,
     );
     await tester.pumpWidget(_app(db));
@@ -228,14 +229,14 @@ void main() {
     final moved = await (db.select(db.records)
           ..where((r) => r.id.equals(id)))
         .getSingle();
-    expect(moved.dueAt, DateTime(today.year, today.month, today.day, 14, 30));
+    expect(moved.dueAt, today);
 
     await tester.tap(find.text('撤销'));
     await tester.pumpAndSettle();
     final restored = await (db.select(db.records)
           ..where((r) => r.id.equals(id)))
         .getSingle();
-    expect(restored.dueAt, DateTime(2026, 11, 10, 14, 30));
+    expect(restored.dueAt, isNull);
     await _disposeApp(tester);
   });
 

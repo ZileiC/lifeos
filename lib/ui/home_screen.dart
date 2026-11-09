@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../data/recurrence.dart';
+
 import '../ai/ai_models.dart';
 import '../ai/ai_schedule.dart';
 import '../data/database.dart';
@@ -242,79 +244,138 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget _buildTasks(
     List<Record> tasks,
     Map<String, List<DaySlice>> byTask,
+    List<DaySliceWithTask> daySlices,
+    DateTime day,
   ) {
-    if (tasks.isEmpty) {
-      return const Center(child: Text('记下第一件事'));
-    }
-    final now = DateTime.now();
-    final planned = ref.watch(daySlicesProvider(DateTime(now.year, now.month, now.day)))
-            .value
-            ?.fold<int>(0, (sum, entry) => sum +
-                entry.slice.endAt.difference(entry.slice.startAt).inMinutes) ??
-        0;
+    final isToday = _sameDay(day, DateTime.now());
+    final daySlicesIds = daySlices.map((entry) => entry.task.id).toSet();
+
+    final dayTasks = tasks.where((task) {
+      if (daySlicesIds.contains(task.id)) return true;
+      final recurring = RecurrenceSpec.tryParse(task.recurrence);
+      if (recurring != null) {
+        final d = DateTime(day.year, day.month, day.day);
+        final from = DateTime(
+            recurring.fromDate.year, recurring.fromDate.month, recurring.fromDate.day);
+        final to = DateTime(
+            recurring.toDate.year, recurring.toDate.month, recurring.toDate.day);
+        return recurring.weekdays.contains(d.weekday) &&
+            !d.isBefore(from) &&
+            !d.isAfter(to);
+      }
+      if (task.dueAt != null && _sameDay(task.dueAt!, day)) return true;
+      if (task.startAt != null && _sameDay(task.startAt!, day)) return true;
+      return false;
+    }).toList();
+
+    final dayTaskIds = dayTasks.map((task) => task.id).toSet();
+    final backlog = tasks
+        .where((task) =>
+            !dayTaskIds.contains(task.id) &&
+            RecurrenceSpec.tryParse(task.recurrence) == null &&
+            task.dueAt == null &&
+            task.startAt == null &&
+            (byTask[task.id] ?? const <DaySlice>[]).isEmpty)
+        .toList();
+
+    final planned = daySlices.fold<int>(
+        0, (sum, entry) => sum + entry.slice.endAt.difference(entry.slice.startAt).inMinutes);
     final load = (planned / 480).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    '今日负荷',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: AppTheme.inkDim,
-                          letterSpacing: 0.12,
-                        ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${(planned / 60).toStringAsFixed(1)} / 8h',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: AppTheme.inkDim,
-                        ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 7),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: LinearProgressIndicator(
-                  value: load,
-                  minHeight: 3,
-                  backgroundColor: AppTheme.line,
-                  valueColor:
-                      const AlwaysStoppedAnimation<Color>(AppTheme.accent),
-                ),
-              ),
-            ],
+
+    Widget row(Record task, int index) => _Reveal(
+          index: index,
+          child: TaskRow(
+            task: task,
+            slices: byTask[task.id] ?? const <DaySlice>[],
+            selectionMode: _selectionMode,
+            selected: _selected.contains(task.id),
+            onTap: () => _selectionMode
+                ? _toggleSelection(task.id)
+                : _openDetail(task),
+            onLongPress: () => _enterSelection(task.id),
+          ),
+        );
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: _DayHead(
+            day: day,
+            isToday: isToday,
+            onPrev: () => ref.read(selectedDayProvider.notifier).shift(-1),
+            onNext: () => ref.read(selectedDayProvider.notifier).shift(1),
+            onToday: () => ref.read(selectedDayProvider.notifier).today(),
           ),
         ),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.only(bottom: 96),
-            itemCount: tasks.length,
-            itemBuilder: (context, index) {
-              final task = tasks[index];
-              return _Reveal(
-                index: index,
-                child: TaskRow(
-                  task: task,
-                  slices: byTask[task.id] ?? const <DaySlice>[],
-                  selectionMode: _selectionMode,
-                  selected: _selected.contains(task.id),
-                  onTap: () => _selectionMode
-                      ? _toggleSelection(task.id)
-                      : _openDetail(task),
-                  onLongPress: () => _enterSelection(task.id),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Row(
+              children: [
+                Text(
+                  '负荷',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: AppTheme.inkDim,
+                        letterSpacing: 0.12,
+                      ),
                 ),
-              );
-            },
+                const Spacer(),
+                Text(
+                  '${(planned / 60).toStringAsFixed(1)} / 8h',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppTheme.inkDim,
+                      ),
+                ),
+              ],
+            ),
           ),
         ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: load,
+                minHeight: 3,
+                backgroundColor: AppTheme.line,
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(AppTheme.accent),
+              ),
+            ),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: _SectionLabel(label: '当天', count: dayTasks.length),
+        ),
+        if (dayTasks.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+              child: Text(
+                isToday ? '今天没有安排' : '这天没有安排',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: AppTheme.inkDim),
+              ),
+            ),
+          )
+        else
+          SliverList.builder(
+            itemCount: dayTasks.length,
+            itemBuilder: (context, index) => row(dayTasks[index], index),
+          ),
+        if (backlog.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: _SectionLabel(label: '待安排', count: backlog.length),
+          ),
+          SliverList.builder(
+            itemCount: backlog.length,
+            itemBuilder: (context, index) => row(backlog[index], index),
+          ),
+        ],
+        const SliverToBoxAdapter(child: SizedBox(height: 96)),
       ],
     );
   }
@@ -415,7 +476,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
           Expanded(
             child: _segment == HomeSegment.tasks
-                ? _buildTasks(tasks, byTask)
+                ? _buildTasks(tasks, byTask, daySlices, day)
                 : DayView(
                     day: day,
                     slices: daySlices,
@@ -543,6 +604,114 @@ class _Reveal extends StatelessWidget {
         ),
       ),
       child: child,
+    );
+  }
+}
+bool _sameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
+
+class _DayHead extends StatelessWidget {
+  const _DayHead({
+    required this.day,
+    required this.isToday,
+    required this.onPrev,
+    required this.onNext,
+    required this.onToday,
+  });
+
+  final DateTime day;
+  final bool isToday;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
+  final VoidCallback onToday;
+
+  static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 8, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${day.day}',
+                style: theme.textTheme.displayLarge?.copyWith(
+                  fontSize: 46,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.04,
+                  height: 0.95,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${DateFormat('M月').format(day)} · 周${_weekdays[day.weekday - 1]}',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: AppTheme.inkDim,
+                  letterSpacing: 0.08,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          if (!isToday)
+            TextButton(
+              key: const Key('tasks-today'),
+              onPressed: onToday,
+              child: const Text('今天'),
+            ),
+          IconButton(
+            key: const Key('tasks-prev'),
+            tooltip: '前一天',
+            onPressed: onPrev,
+            icon: const Icon(Icons.chevron_left, size: 24),
+          ),
+          IconButton(
+            key: const Key('tasks-next'),
+            tooltip: '后一天',
+            onPressed: onNext,
+            icon: const Icon(Icons.chevron_right, size: 24),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.label, required this.count});
+
+  final String label;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppTheme.lineSoft)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: AppTheme.inkDim,
+              letterSpacing: 0.14,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '$count',
+            style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.inkDim),
+          ),
+        ],
+      ),
     );
   }
 }

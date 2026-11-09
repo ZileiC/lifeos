@@ -258,8 +258,9 @@ class TaskRepository {
     );
   }
 
-  /// Generation is idempotent: a tombstoned slice still blocks re-insertion,
-  /// so a single-day deletion does not come back on a later create.
+  /// Generation is idempotent against ACTIVE slices. Tombstoned rows do not
+  /// block regeneration: a weekly-template edit tombstones the old slices and
+  /// must be able to insert the new pattern at the same startAt.
   Future<void> _generateSlices(
     String taskId,
     RecurrenceSpec spec,
@@ -269,7 +270,8 @@ class TaskRepository {
       final existing = await (_db.select(_s)
             ..where((slice) =>
                 slice.taskId.equals(taskId) &
-                slice.startAt.equals(occurrence.startAt)))
+                slice.startAt.equals(occurrence.startAt) &
+                slice.deletedAt.isNull()))
           .get();
       if (existing.isNotEmpty) continue;
       await _db.into(_s).insert(DaySlicesCompanion.insert(

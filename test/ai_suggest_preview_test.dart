@@ -109,12 +109,15 @@ void main() {
       estimatedMinutes: 60,
     );
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final start = today.add(Duration(hours: (now.hour + 1).clamp(0, 23)));
-    final end = start.add(const Duration(minutes: 30));
+    final today = DateTime(now.year, now.month, now.day)
+        .add(const Duration(days: 1));
+    final start = today.add(const Duration(hours: 9));
+    final end = start.add(const Duration(hours: 1));
     await _pumpApp(tester, db, _jsonFor(taskId: taskId, start: start, end: end));
 
     await tester.tap(find.text('日视图'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('day-next')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('day-ai')));
     await tester.pump();
@@ -139,12 +142,15 @@ void main() {
   testWidgets('ignoring an AI suggestion writes nothing', (tester) async {
     final taskId = await repo.createTask(title: '写报告');
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final start = today.add(Duration(hours: (now.hour + 1).clamp(0, 23)));
-    final end = start.add(const Duration(minutes: 30));
+    final today = DateTime(now.year, now.month, now.day)
+        .add(const Duration(days: 1));
+    final start = today.add(const Duration(hours: 9));
+    final end = start.add(const Duration(hours: 1));
     await _pumpApp(tester, db, _jsonFor(taskId: taskId, start: start, end: end));
 
     await tester.tap(find.text('日视图'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('day-next')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('day-ai')));
     await tester.pumpAndSettle();
