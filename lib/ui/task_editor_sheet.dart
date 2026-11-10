@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../data/database.dart';
 import '../data/recurrence.dart';
 import '../providers.dart';
+import 'theme.dart';
 
 enum TaskEditMode { once, weekly }
 
@@ -397,12 +398,23 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
                       style: theme.textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
+                    Text(
+                      _editing ? '编辑任务' : '新任务',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: AppTheme.inkDim,
+                        letterSpacing: 0.14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     TextField(
                       key: const Key('task-title'),
                       controller: _title,
+                      style:
+                          theme.textTheme.displaySmall?.copyWith(fontSize: 26),
                       decoration: const InputDecoration(
-                        labelText: '任务',
-                        border: OutlineInputBorder(),
+                        hintText: '要做什么？',
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
                       ),
                     ),
                     const SizedBox(height: 12),
