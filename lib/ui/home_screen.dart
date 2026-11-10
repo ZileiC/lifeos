@@ -31,6 +31,24 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   HomeSegment _segment = HomeSegment.tasks;
   final Set<String> _selected = <String>{};
+  final ScrollController _tasksScroll = ScrollController();
+  final ValueNotifier<double> _tasksScrollOffset = ValueNotifier<double>(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _tasksScroll.addListener(() {
+      if (!_tasksScroll.hasClients) return;
+      _tasksScrollOffset.value = _tasksScroll.offset;
+    });
+  }
+
+  @override
+  void dispose() {
+    _tasksScroll.dispose();
+    _tasksScrollOffset.dispose();
+    super.dispose();
+  }
   bool _selectionMode = false;
   AiSuggestion? _aiSuggestion;
   bool _aiLoading = false;
@@ -297,6 +315,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         );
 
     return CustomScrollView(
+      controller: _tasksScroll,
       slivers: [
         SliverToBoxAdapter(
           child: _DayHead(
@@ -401,20 +420,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('LifeOS'),
-            const SizedBox(width: 7),
-            Container(
-              width: 6,
-              height: 6,
-              decoration: const BoxDecoration(
-                color: AppTheme.accent,
-                shape: BoxShape.circle,
+        title: AnimatedBuilder(
+          animation: _tasksScrollOffset,
+          builder: (context, child) {
+            final t = MediaQuery.disableAnimationsOf(context)
+                ? 0.0
+                : (_tasksScrollOffset.value / 140).clamp(0.0, 1.0);
+            return Transform.scale(
+              scale: 1 - 0.08 * t,
+              alignment: Alignment.centerLeft,
+              child: Opacity(opacity: 1 - 0.25 * t, child: child),
+            );
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('LifeOS'),
+              const SizedBox(width: 7),
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: AppTheme.accent,
+                  shape: BoxShape.circle,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           IconButton(
@@ -582,28 +614,54 @@ class _SegmentTab extends StatelessWidget {
   }
 }
 
-class _Reveal extends StatelessWidget {
+class _Reveal extends StatefulWidget {
   const _Reveal({required this.index, required this.child});
 
   final int index;
   final Widget child;
 
   @override
+  State<_Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<_Reveal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _offset;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppTheme.durSlow,
+    );
+    final start = (widget.index % 8) * 0.06;
+    final eased = CurvedAnimation(
+      parent: _controller,
+      curve: Interval(start, 1, curve: AppTheme.easeOut),
+    );
+    _opacity = eased;
+    _offset = Tween<Offset>(
+      begin: const Offset(0, 0.03),
+      end: Offset.zero,
+    ).animate(eased);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (MediaQuery.disableAnimationsOf(context)) return child;
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: AppTheme.durSlow +
-          Duration(milliseconds: 40 * (index % 8)),
-      curve: AppTheme.easeOut,
-      builder: (context, t, child) => Opacity(
-        opacity: t,
-        child: Transform.translate(
-          offset: Offset(0, (1 - t) * 10),
-          child: child,
-        ),
-      ),
-      child: child,
+    if (MediaQuery.disableAnimationsOf(context)) return widget.child;
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(position: _offset, child: widget.child),
     );
   }
 }
@@ -638,13 +696,29 @@ class _DayHead extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '${day.day}',
-                style: theme.textTheme.displayLarge?.copyWith(
-                  fontSize: 46,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.04,
-                  height: 0.95,
+              AnimatedSwitcher(
+                duration: AppTheme.durBase,
+                switchInCurve: AppTheme.easeOut,
+                switchOutCurve: AppTheme.easeInOut,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.12),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: Text(
+                  '${day.day}',
+                  key: ValueKey('${day.year}-${day.month}-${day.day}'),
+                  style: theme.textTheme.displayLarge?.copyWith(
+                    fontSize: 46,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.04,
+                    height: 0.95,
+                  ),
                 ),
               ),
               const SizedBox(height: 4),
