@@ -188,6 +188,8 @@ void main() {
 
     await tester.pumpWidget(_app(db));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('tasks-prev')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('课'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('detail-edit')));
