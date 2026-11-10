@@ -153,3 +153,31 @@ bad on mobile and scroll-jacking as an accessibility violation).
 
 **UX** — reduced motion (High severity) and motion sensitivity (High): both honored via
 `MediaQuery.disableAnimationsOf`.
+## v2 — "Midnight Instrument" (2026-11-10)
+
+The old red accent was rejected after reviewing `docs/assets/logo.jpg`: the icon is a deep-navy
+squircle with an electric-blue -> cyan gradient (checklist + calendar + sparkle). Red belongs to a
+different brand family. v2 derives the whole system from the logo.
+
+**Palette (all contrast-checked):**
+- ground `#060B16`, surface `#0C1424`, raised `#111B2E`
+- ink `#E8EEFA`, dim `#8593AC`, hairlines `#1B2740` / `#131D31`
+- brand: `#3D7BFF` -> `#4ED2FF`; primary CTA fill `#4ED2FF` with `#06101F` label (12.4:1)
+- danger `#FF5B6E`
+
+**Type:** Sora (display + tabular numbers) / Manrope (body) / Noto Sans SC fallback. Replaced Inter
+(the "Modern Dark Cinema" default) because the brief asks for a distinctive identity, not a default.
+
+**Layout / IA:** top segmented control replaced by a **bottom navigation** (任务 / 日视图) with a
+gradient FAB; task rows are **time-led** (44px time gutter + color dot + title + one meta line) instead
+of cards; the day-scoped sections (当天 / 待安排) stay.
+
+**Buttons:** primary = bright cyan fill, ink label, 12px radius, no shadow; secondary = hairline
+outline; destructive = red text. FAB = brand gradient circle. No gradient behind text anywhere else.
+
+**Motion:** existing scroll-linked wordmark, staggered rows, day ticker, hero rail, sheet entrance;
+all honor `disableAnimations`.
+
+**Verification (2026-11-10):** `flutter analyze` 0; `flutter test` 74/74; WCAG pairs measured with the
+relative-luminance formula: ink/bg 16.91:1, dim/bg 6.34:1, dim/surface 5.93:1, cyan/bg 11.23:1,
+ink-on-cyan 10.88:1, ink/raised 14.79:1, danger/bg 6.53:1, blue/bg 5.13:1 (UI only).

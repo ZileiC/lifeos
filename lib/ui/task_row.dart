@@ -32,7 +32,8 @@ String _planLabel(Record task, RecurrenceSpec? recurrence, int? remaining) {
   return '剩余 $remaining / 预估 $estimate 分钟';
 }
 
-/// Editorial task row: thin color rail, strong title, one tabular meta line.
+/// Time-led editorial row: a fixed time gutter, a color dot, the title,
+/// and one tabular meta line. No cards, no shadows.
 class TaskRow extends StatelessWidget {
   const TaskRow({
     super.key,
@@ -59,6 +60,11 @@ class TaskRow extends StatelessWidget {
     final remaining = TaskMath.remainingMinutes(task, slices);
     final due = _dueLabel(task, recurrence);
     final plan = _planLabel(task, recurrence, remaining);
+    final hasSlice = slices.isNotEmpty;
+    final startLabel =
+        hasSlice ? DateFormat('HH:mm').format(slices.first.startAt) : '--:--';
+    final endLabel =
+        hasSlice ? DateFormat('HH:mm').format(slices.last.endAt) : '';
 
     return Material(
       color: selected ? AppTheme.surfaceHigh : Colors.transparent,
@@ -66,24 +72,49 @@ class TaskRow extends StatelessWidget {
         onTap: onTap,
         onLongPress: onLongPress,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
           decoration: const BoxDecoration(
             border: Border(bottom: BorderSide(color: AppTheme.lineSoft)),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              SizedBox(
+                width: 44,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      startLabel,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: hasSlice ? AppTheme.ink : AppTheme.inkDim,
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (hasSlice)
+                      Text(
+                        endLabel,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppTheme.inkDim,
+                          fontSize: 9,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
               Hero(
                 tag: 'task-rail-${task.id}',
                 child: Container(
-                  width: 3,
-                  height: 40,
+                  width: 7,
+                  height: 7,
                   decoration: BoxDecoration(
                     color: color,
-                    borderRadius: BorderRadius.circular(2),
+                    shape: BoxShape.circle,
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,7 +125,7 @@ class TaskRow extends StatelessWidget {
                           const Padding(
                             padding: EdgeInsets.only(right: 5),
                             child: Icon(Icons.push_pin,
-                                size: 13, color: AppTheme.accent),
+                                size: 12, color: AppTheme.accentBright),
                           ),
                         Expanded(
                           child: Text(
@@ -120,12 +151,13 @@ class TaskRow extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Text(
                 'U${task.urgency ?? '—'}  I${task.importance ?? '—'}',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: AppTheme.inkDim,
                   letterSpacing: 0.04,
+                  fontSize: 10,
                 ),
               ),
               if (selectionMode) ...[
@@ -133,7 +165,7 @@ class TaskRow extends StatelessWidget {
                 Icon(
                   selected ? Icons.check_box : Icons.check_box_outline_blank,
                   size: 20,
-                  color: selected ? AppTheme.accent : AppTheme.line,
+                  color: selected ? AppTheme.accentBright : AppTheme.line,
                 ),
               ],
             ],

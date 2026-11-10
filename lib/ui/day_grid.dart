@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'theme.dart';
+
 import '../ai/ai_models.dart';
 import '../data/database.dart';
 import '../data/task_colors.dart';
@@ -129,10 +131,10 @@ class _DayGridState extends State<DayGrid> {
                     child: Container(
                       key: const Key('day-now-line'),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.error,
+                        color: AppTheme.accentBright,
                         boxShadow: [
                           BoxShadow(
-                            color: theme.colorScheme.error.withValues(alpha: 0.35),
+                            color: AppTheme.accentBright.withValues(alpha: 0.35),
                             blurRadius: 10,
                           ),
                         ],
@@ -148,7 +150,7 @@ class _DayGridState extends State<DayGrid> {
                       '现在',
                       textAlign: TextAlign.right,
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.error,
+                        color: AppTheme.accentBright,
                         fontSize: 10,
                       ),
                     ),

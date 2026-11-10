@@ -444,10 +444,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const Text('LifeOS'),
               const SizedBox(width: 7),
               Container(
-                width: 6,
-                height: 6,
+                width: 8,
+                height: 8,
                 decoration: const BoxDecoration(
-                  color: AppTheme.accent,
+                  gradient: AppTheme.brandGradient,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -486,67 +486,48 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
-            child: Row(
-              children: [
-                _SegmentTab(
-                  label: '任务',
-                  selected: _segment == HomeSegment.tasks,
-                  onTap: () => setState(() => _segment = HomeSegment.tasks),
-                ),
-                const SizedBox(width: 22),
-                _SegmentTab(
-                  label: '日视图',
-                  selected: _segment == HomeSegment.day,
-                  onTap: () => setState(() => _segment = HomeSegment.day),
-                ),
-                const Spacer(),
-                Text(
-                  '${tasks.length} 项',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppTheme.inkDim,
-                        letterSpacing: 0.04,
-                      ),
-                ),
-              ],
+      body: _segment == HomeSegment.tasks
+          ? _buildTasks(tasks, byTask, daySlices, day)
+          : DayView(
+              day: day,
+              slices: daySlices,
+              isToday: isToday,
+              onPrev: () => ref.read(selectedDayProvider.notifier).shift(-1),
+              onNext: () => ref.read(selectedDayProvider.notifier).shift(1),
+              onToday: () => ref.read(selectedDayProvider.notifier).today(),
+              onAddTask: () => _openTaskPicker(day),
+              onEditSlice: _openSlice,
+              onAiSchedule: () => _aiSuggest(day),
+              aiLoading: _aiLoading,
+              suggested:
+                  _aiSuggestion?.slices ?? const <AiSliceSuggestion>[],
+              suggestedTasks:
+                  _aiSuggestion?.tasks ?? const <String, Record>{},
             ),
-          ),
-          Expanded(
-            child: _segment == HomeSegment.tasks
-                ? _buildTasks(tasks, byTask, daySlices, day)
-                : DayView(
-                    day: day,
-                    slices: daySlices,
-                    isToday: isToday,
-                    onPrev: () =>
-                        ref.read(selectedDayProvider.notifier).shift(-1),
-                    onNext: () =>
-                        ref.read(selectedDayProvider.notifier).shift(1),
-                    onToday: () =>
-                        ref.read(selectedDayProvider.notifier).today(),
-                    onAddTask: () => _openTaskPicker(day),
-                    onEditSlice: _openSlice,
-                    onAiSchedule: () => _aiSuggest(day),
-                    aiLoading: _aiLoading,
-                    suggested: _aiSuggestion?.slices ??
-                        const <AiSliceSuggestion>[],
-                    suggestedTasks:
-                        _aiSuggestion?.tasks ?? const <String, Record>{},
-                  ),
-          ),
-        ],
-      ),
       floatingActionButton: _selectionMode
           ? null
-          : FloatingActionButton(
-              onPressed: _segment == HomeSegment.tasks
-                  ? _openCreate
-                  : () => _openTaskPicker(day),
-              tooltip: _segment == HomeSegment.tasks ? '新任务' : '排任务',
-              child: const Icon(Icons.add),
+          : Container(
+              decoration: const BoxDecoration(
+                gradient: AppTheme.brandGradient,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x553D7BFF),
+                    blurRadius: 22,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: FloatingActionButton(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                highlightElevation: 0,
+                onPressed: _segment == HomeSegment.tasks
+                    ? _openCreate
+                    : () => _openTaskPicker(day),
+                tooltip: _segment == HomeSegment.tasks ? '新任务' : '排任务',
+                child: const Icon(Icons.add, color: Colors.white),
+              ),
             ),
       bottomNavigationBar: _selectionMode
           ? BottomAppBar(
@@ -570,57 +551,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
             )
-          : null,
+          : _BottomNav(
+              segment: _segment,
+              onChanged: (value) => setState(() => _segment = value),
+            ),
     );
   }
 }
 
-class _SegmentTab extends StatelessWidget {
-  const _SegmentTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
 
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: selected ? AppTheme.ink : AppTheme.inkDim,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 5),
-            AnimatedContainer(
-              duration: AppTheme.durBase,
-              curve: AppTheme.easeOut,
-              width: selected ? 18 : 0,
-              height: 2,
-              decoration: BoxDecoration(
-                color: AppTheme.accent,
-                borderRadius: BorderRadius.circular(1),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _Reveal extends StatefulWidget {
   const _Reveal({required this.index, required this.child});
@@ -793,6 +732,86 @@ class _SectionLabel extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(color: AppTheme.inkDim),
           ),
         ],
+      ),
+    );
+  }
+}
+class _BottomNav extends StatelessWidget {
+  const _BottomNav({required this.segment, required this.onChanged});
+
+  final HomeSegment segment;
+  final ValueChanged<HomeSegment> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppTheme.surface,
+        border: Border(top: BorderSide(color: AppTheme.line)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 62,
+          child: Row(
+            children: [
+              _NavItem(
+                icon: Icons.checklist_rtl,
+                label: '任务',
+                selected: segment == HomeSegment.tasks,
+                onTap: () => onChanged(HomeSegment.tasks),
+              ),
+              _NavItem(
+                icon: Icons.calendar_view_week_outlined,
+                label: '日视图',
+                selected: segment == HomeSegment.day,
+                onTap: () => onChanged(HomeSegment.day),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 21,
+              color: selected ? AppTheme.accentBright : AppTheme.inkDim,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: selected ? AppTheme.ink : AppTheme.inkDim,
+                letterSpacing: 0.06,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
