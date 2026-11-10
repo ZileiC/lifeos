@@ -8,6 +8,7 @@ import '../data/task_colors.dart';
 import '../data/task_math.dart';
 import '../providers.dart';
 import 'slice_editor_sheet.dart';
+import 'theme.dart';
 import 'task_editor_sheet.dart';
 
 String _weekdayShort(int day) =>
@@ -50,7 +51,10 @@ class TaskDetailSheet extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(task.title, style: theme.textTheme.titleLarge),
+                  child: Text(
+                    task.title,
+                    style: theme.textTheme.displaySmall?.copyWith(fontSize: 26),
+                  ),
                 ),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
@@ -58,18 +62,32 @@ class TaskDetailSheet extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                Chip(label: Text('U ${task.urgency ?? '—'}')),
-                Chip(label: Text('I ${task.importance ?? '—'}')),
-                if (task.pinned) const Chip(label: Text('置顶')),
-              ],
+            Text(
+              'U${task.urgency ?? '—'}   I${task.importance ?? '—'}'
+              '${task.pinned ? '   ·   置顶' : ''}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: AppTheme.inkDim,
+                letterSpacing: 0.06,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 20),
+            Text(
+              '排期',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: AppTheme.inkDim,
+                letterSpacing: 0.14,
+              ),
+            ),
+            const SizedBox(height: 4),
             Text(_scheduleLabel(task, recurrence), style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 16),
+            Text(
+              '投入',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: AppTheme.inkDim,
+                letterSpacing: 0.14,
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
               _effortLabel(task, recurrence, planned, remaining),
@@ -103,6 +121,7 @@ class TaskDetailSheet extends ConsumerWidget {
                     context: context,
                     isScrollControlled: true,
                     useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
                     builder: (_) => SliceEditorSheet(
                       task: task,
                       existing: slice,
@@ -113,24 +132,13 @@ class TaskDetailSheet extends ConsumerWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                FilledButton.tonalIcon(
-                  key: const Key('detail-plan'),
-                  onPressed: () => showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    builder: (_) => SliceEditorSheet(task: task),
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('排一块'),
-                ),
-                const SizedBox(width: 8),
-                TextButton.icon(
+                FilledButton.icon(
                   key: const Key('detail-edit'),
                   onPressed: () => showModalBottomSheet<void>(
                     context: context,
                     isScrollControlled: true,
                     useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
                     builder: (_) => TaskEditorSheet(
                       existing: task,
                       existingSlices: slices,
@@ -138,6 +146,19 @@ class TaskDetailSheet extends ConsumerWidget {
                   ),
                   icon: const Icon(Icons.edit_outlined),
                   label: const Text('编辑'),
+                ),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  key: const Key('detail-plan'),
+                  onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
+                    builder: (_) => SliceEditorSheet(task: task),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('排一块'),
                 ),
                 const Spacer(),
                 TextButton.icon(

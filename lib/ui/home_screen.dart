@@ -99,6 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
         builder: (_) => AiSuggestionSheet(suggestion: suggestion),
       );
       if (!mounted) return;
@@ -146,6 +147,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
       builder: (_) => const TaskEditorSheet(),
     );
   }
@@ -155,6 +157,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
       builder: (_) => TaskDetailSheet(task: task),
     );
   }
@@ -164,6 +167,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
       builder: (_) => SliceEditorSheet(
         task: entry.task,
         existing: entry.slice,
@@ -176,6 +180,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
       builder: (_) => SliceEditorSheet(task: task, initialDay: day),
     );
   }
@@ -190,6 +195,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final picked = await showModalBottomSheet<Record>(
       context: context,
       useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
       builder: (context) => SafeArea(
         child: ListView(
           shrinkWrap: true,
@@ -457,6 +463,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               context: context,
               isScrollControlled: true,
               useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
               builder: (_) => AiAskSheet(targetDay: day),
             ),
           ),
@@ -468,6 +475,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               context: context,
               isScrollControlled: true,
               useSafeArea: true,
+              sheetAnimationStyle: const AnimationStyle(duration: AppTheme.durCinematic, curve: AppTheme.easeOut),
               builder: (_) => const AiSettingsSheet(),
             ),
           ),
