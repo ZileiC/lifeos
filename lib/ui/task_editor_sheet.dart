@@ -418,21 +418,22 @@ class _TaskEditorSheetState extends ConsumerState<TaskEditorSheet> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    SegmentedButton<TaskEditMode>(
-                      segments: const [
-                        ButtonSegment(
-                          value: TaskEditMode.once,
-                          label: Text('一次性'),
+                    Row(
+                      children: [
+                        _ModeTab(
+                          label: '一次性',
+                          selected: _mode == TaskEditMode.once,
+                          onTap: () =>
+                              setState(() => _mode = TaskEditMode.once),
                         ),
-                        ButtonSegment(
-                          value: TaskEditMode.weekly,
-                          label: Text('每周固定'),
+                        const SizedBox(width: 20),
+                        _ModeTab(
+                          label: '每周固定',
+                          selected: _mode == TaskEditMode.weekly,
+                          onTap: () =>
+                              setState(() => _mode = TaskEditMode.weekly),
                         ),
                       ],
-                      selected: {_mode},
-                      onSelectionChanged: (values) {
-                        setState(() => _mode = values.first);
-                      },
                     ),
                     const SizedBox(height: 16),
                     _ScoreSelector(
@@ -671,6 +672,53 @@ class _ScoreSelector extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _ModeTab extends StatelessWidget {
+  const _ModeTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: selected ? AppTheme.ink : AppTheme.inkDim,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 5),
+            AnimatedContainer(
+              duration: AppTheme.durBase,
+              curve: AppTheme.easeOut,
+              width: selected ? 18 : 0,
+              height: 2,
+              decoration: BoxDecoration(
+                color: AppTheme.accent,
+                borderRadius: BorderRadius.circular(1),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

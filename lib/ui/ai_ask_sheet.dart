@@ -143,7 +143,7 @@ class _AiAskSheetState extends ConsumerState<AiAskSheet> {
                   Icon(Icons.forum_outlined,
                       size: 20, color: theme.colorScheme.primary),
                   const SizedBox(width: 8),
-                  Text('问 AI', style: theme.textTheme.titleLarge),
+                  Text('问 AI', style: theme.textTheme.displaySmall?.copyWith(fontSize: 24)),
                   const Spacer(),
                   Text(
                     '只读 · 不写库',

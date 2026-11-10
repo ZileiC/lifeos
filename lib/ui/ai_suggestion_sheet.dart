@@ -85,7 +85,7 @@ class _AiSuggestionSheetState extends State<AiSuggestionSheet> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              child: Text('AI 建议', style: theme.textTheme.titleLarge),
+              child: Text('AI 建议', style: theme.textTheme.displaySmall?.copyWith(fontSize: 24)),
             ),
             if (suggestion.answer.isNotEmpty)
               Padding(

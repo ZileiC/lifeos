@@ -178,7 +178,7 @@ class _AiSettingsSheetState extends ConsumerState<AiSettingsSheet> {
             : ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                 children: [
-                  Text('AI 设置', style: theme.textTheme.titleLarge),
+                  Text('AI 设置', style: theme.textTheme.displaySmall?.copyWith(fontSize: 24)),
                   const SizedBox(height: 4),
                   Text(
                     '默认 DeepSeek；可添加其他 OpenAI-compatible provider。'
